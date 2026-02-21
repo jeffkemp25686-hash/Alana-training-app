@@ -1,0 +1,267 @@
+/* --- OVERRIDE VITE STARTER LAYOUT (fix scroll + layout) --- */
+html, body, #root {
+  height: auto !important;
+  min-height: 100% !important;
+}
+
+body {
+  display: block !important;
+  place-items: initial !important;
+  overflow-y: auto !important;
+  margin: 0;
+  font-family: ui-sans-serif, system-ui, -apple-system, Segoe UI, Roboto, Helvetica, Arial;
+}
+
+#root {
+  max-width: none !important;
+  margin: 0 !important;
+  padding: 0 !important;
+  text-align: initial !important;
+}
+
+/* ===== THEME (GREEN) ===== */
+:root{
+  --bg:#f4fbf6;
+  --card:#ffffff;
+  --text:#0f172a;
+  --muted:#64748b;
+  --line:#e2e8f0;
+  --brand:#064e3b;   /* deep green */
+  --accent:#16a34a;  /* vibrant green */
+  --radius:14px;
+}
+
+*{ box-sizing: border-box; }
+
+body{
+  background: var(--bg);
+  color: var(--text);
+}
+
+/* ===== APP LAYOUT ===== */
+.shell{
+  min-height: 100vh;
+  padding-bottom: 90px; /* space for bottom nav */
+}
+
+.topbar{
+  position: sticky;
+  top: 0;
+  z-index: 80;
+  height: 56px;
+  display:flex;
+  align-items:center;
+  justify-content:center;
+  background: var(--brand);
+  color:#fff;
+  font-weight: 800;
+  letter-spacing: .2px;
+  box-shadow: 0 6px 18px rgba(0,0,0,.12);
+}
+
+.content{
+  max-width: 980px;
+  margin: 0 auto;
+  padding: 14px;
+}
+
+/* ===== LEGACY CONTENT POLISH ===== */
+#app{
+  display:flex;
+  flex-direction:column;
+  gap: 14px;
+}
+
+/* Best-effort “card” look for legacy sections */
+#app > div,
+#app section,
+#app form{
+  background: var(--card);
+  border: 1px solid var(--line);
+  border-radius: var(--radius);
+  padding: 14px;
+  box-shadow: 0 8px 18px rgba(15,23,42,0.06);
+}
+
+/* Typography */
+#app h1,#app h2,#app h3{ margin: 0 0 10px 0; }
+#app p{ color: var(--muted); }
+#app hr{ border: none; border-top: 1px solid var(--line); margin: 14px 0; }
+
+/* Inputs */
+#app input, #app select, #app textarea{
+  width: 100%;
+  border: 1px solid var(--line);
+  border-radius: 12px;
+  padding: 10px 12px;
+  font-size: 14px;
+  background: #fff;
+}
+#app input:focus, #app select:focus, #app textarea:focus{
+  outline: none;
+  border-color: rgba(22,163,74,.45);
+  box-shadow: 0 0 0 3px rgba(22,163,74,.16);
+}
+
+/* Buttons */
+#app button{
+  border: 1px solid var(--line);
+  background: #fff;
+  color: var(--text);
+  border-radius: 12px;
+  padding: 10px 12px;
+  font-weight: 700;
+  cursor: pointer;
+}
+#app button:hover{ background:#f8fafc; }
+#app button:active{ transform: translateY(1px); }
+#app button:disabled{ opacity:.6; cursor:not-allowed; }
+
+/* Primary-looking action buttons (best-effort) */
+#app button[onclick*="sync"],
+#app button[onclick*="save"],
+#app button[onclick*="log"],
+#app button[onclick*="Submit"]{
+  background: var(--accent);
+  color:#fff;
+  border-color: rgba(22,163,74,.35);
+}
+
+/* ===== BOTTOM NAV (CENTERED) ===== */
+.bottomnavOuter{
+  position: fixed;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  z-index: 90;
+  background: rgba(255,255,255,.92);
+  border-top: 1px solid var(--line);
+  backdrop-filter: saturate(180%) blur(10px);
+}
+
+.bottomnav{
+  max-width: 980px;
+  margin: 0 auto;
+  height: 70px;
+  display:flex;
+  justify-content: space-around;
+  align-items:center;
+  gap: 6px;
+  padding: 10px 10px;
+}
+
+.navbtn{
+  flex:1;
+  display:flex;
+  flex-direction:column;
+  align-items:center;
+  justify-content:center;
+  gap: 2px;
+  padding: 8px 6px;
+  border-radius: 14px;
+  border: 1px solid transparent;
+  background: transparent;
+  cursor: pointer;
+}
+
+.navicon{ font-size: 18px; line-height: 1; }
+.navlabel{ font-size: 11px; color: var(--muted); font-weight: 700; }
+
+.navbtn:hover{ background: #ecfdf3; }
+
+.navbtn.active{
+  background: rgba(22,163,74,.12);
+  border: 1px solid rgba(22,163,74,.25);
+}
+.navbtn.active .navlabel{ color: var(--brand); }
+
+/* Mobile */
+@media (max-width:520px){
+  .content{ padding: 12px; }
+  .topbar{ height: 52px; }
+}
+/* ===== FINAL OVERRIDES — GYM PREMIUM ===== */
+
+/* Background glow */
+body{
+  background: radial-gradient(1200px 500px at 50% 0%, rgba(22,163,74,.12), transparent 55%),
+              var(--bg);
+}
+
+/* Header premium */
+.topbar{
+  background: linear-gradient(90deg, #053d30, var(--brand));
+}
+
+/* Stronger cards */
+#app > div,
+#app section,
+#app form{
+  border: 1px solid rgba(6,78,59,.10);
+  box-shadow:
+    0 1px 0 rgba(15,23,42,.03),
+    0 18px 40px rgba(15,23,42,.08);
+}
+
+/* Typography */
+#app h1{ font-size: 22px; font-weight: 950; letter-spacing: -0.3px; }
+#app h2{ font-size: 18px; font-weight: 950; letter-spacing: -0.2px; color:#032f25; }
+#app h3{ font-size: 13px; font-weight: 800; text-transform: uppercase; letter-spacing: .6px; color: rgba(100,116,139,.9); }
+
+/* Inputs premium */
+#app input, #app select, #app textarea{
+  border-radius: 14px;
+  border: 1px solid rgba(226,232,240,.95);
+  background: rgba(255,255,255,.94);
+  box-shadow: inset 0 1px 0 rgba(15,23,42,.03);
+}
+
+/* Focus green glow */
+#app input:focus, #app select:focus, #app textarea:focus{
+  border-color: rgba(22,163,74,.55);
+  box-shadow: 0 0 0 3px rgba(22,163,74,.14);
+}
+
+/* Buttons premium depth */
+#app button{
+  border-radius: 14px;
+  box-shadow: 0 10px 22px rgba(15,23,42,.06);
+  transition: transform .08s ease, box-shadow .12s ease;
+}
+#app button:hover{ box-shadow: 0 14px 30px rgba(15,23,42,.08); }
+#app button:active{ transform: translateY(1px) scale(.99); }
+
+/* Primary action buttons pop */
+#app button[onclick*="sync"],
+#app button[onclick*="save"],
+#app button[onclick*="log"],
+#app button[onclick*="Submit"]{
+  background: linear-gradient(180deg, #22c55e, #16a34a);
+  box-shadow: 0 12px 26px rgba(22,163,74,.25);
+  border-color: rgba(22,163,74,.35);
+  color: #fff;
+}
+
+/* Bottom nav: floating pill */
+.bottomnavOuter{
+  background: transparent;
+  border-top: none;
+  backdrop-filter: none;
+  box-shadow: none;
+}
+
+.bottomnav{
+  background: rgba(255,255,255,.92);
+  border: 1px solid rgba(6,78,59,.12);
+  border-radius: 18px;
+  margin: 10px auto;
+  height: 68px;
+  box-shadow: 0 18px 42px rgba(15,23,42,.14);
+}
+
+/* Active tab stronger */
+.navbtn.active{
+  background: rgba(22,163,74,.18);
+  border: 1px solid rgba(22,163,74,.32);
+}
+.navbtn.active .navlabel{ color:#032f25; }
