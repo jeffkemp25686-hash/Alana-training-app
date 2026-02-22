@@ -251,17 +251,25 @@ function applyPhaseToExercise(ex, phase) {
   return out;
 }
 
+let __advancing = false;
+
 function nextDay() {
-  const abs = getAbsDay() + 1;
-  setAbsDay(abs);
+  if (__advancing) return;
+  __advancing = true;
 
-  const dayIndex = abs % program.length;
-  localStorage.setItem(STORAGE_DAY, String(dayIndex));
+  try {
+    const abs = getAbsDay() + 1;
+    setAbsDay(abs);
 
-  renderToday();
-  window.dispatchEvent(new Event("training:dayChanged"));
+    const dayIndex = abs % program.length;
+    localStorage.setItem(STORAGE_DAY, String(dayIndex));
+
+    renderToday();
+    window.dispatchEvent(new Event("training:dayChanged"));
+  } finally {
+    setTimeout(() => { __advancing = false; }, 250);
+  }
 }
-window.nextDay = nextDay;
 
 // ==========================
 // REST TIMER
@@ -648,6 +656,8 @@ async function syncToCoach() {
   const week = getCurrentWeekNumber();
   const phase = getPhaseForWeek(week);
 
+  const ss = sessionSuffix(); // ✅ same suffix used in renderToday inputs
+
   const setRows = [];
 
   day.exercises.forEach((ex, exIndex) => {
@@ -656,15 +666,17 @@ async function syncToCoach() {
     if (exName.toUpperCase().startsWith("RUN_")) return;
 
     for (let s = 1; s <= adj.sets; s++) {
-      const w = (
-        localStorage.getItem(`d${dayIndex}-e${exIndex}-s${s}-w`) || ""
-      ).trim();
-      const r = (
-        localStorage.getItem(`d${dayIndex}-e${exIndex}-s${s}-r`) || ""
-      ).trim();
+      // ✅ read the suffixed keys (and fallback to old keys just in case)
+      const wKey = `d${dayIndex}-e${exIndex}-s${s}-w-${ss}`;
+      const rKey = `d${dayIndex}-e${exIndex}-s${s}-r-${ss}`;
+      const wOld = `d${dayIndex}-e${exIndex}-s${s}-w`;
+      const rOld = `d${dayIndex}-e${exIndex}-s${s}-r`;
+
+      const w = (localStorage.getItem(wKey) || localStorage.getItem(wOld) || "").trim();
+      const r = (localStorage.getItem(rKey) || localStorage.getItem(rOld) || "").trim();
 
       if (w || r) {
-        const rowId = `${ATHLETE}|${date}|D${dayIndex}|${day.name}|${adj.name}|set${s}`;
+        const rowId = `${ATHLETE}|${date}|ABS${getAbsDay()}|${day.name}|${adj.name}|set${s}`;
         setRows.push([rowId, ts, ATHLETE, day.name, adj.name, s, adj.reps, w, r]);
       }
     }
@@ -1358,7 +1370,3 @@ export function bootApp() {
 // ==========================
 // AUTO-BOOT
 // ==========================
-if (!window.__alanaBooted) {
-  window.__alanaBooted = true;
-  bootApp();
-}
