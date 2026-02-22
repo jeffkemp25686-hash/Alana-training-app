@@ -253,7 +253,9 @@ function applyPhaseToExercise(ex, phase) {
 
 let __advancing = false;
 
-function nextDay() {
+let __advancing = false;
+
+window.nextDay = function nextDay() {
   if (__advancing) return;
   __advancing = true;
 
@@ -267,9 +269,12 @@ function nextDay() {
     renderToday();
     window.dispatchEvent(new Event("training:dayChanged"));
   } finally {
-    setTimeout(() => { __advancing = false; }, 250);
+    setTimeout(() => {
+      __advancing = false;
+    }, 250);
   }
-}
+};
+
 
 // ==========================
 // REST TIMER
