@@ -732,7 +732,7 @@ async function syncToCoach() {
   const viewAbs = getViewAbsDay();
   const dayIndex = viewAbs % program.length;
   const day = program[dayIndex];
-
+const ss = sessionSuffixForAbs(viewAbs);
   const week = Math.floor(viewAbs / 7) + 1;
   const phase = getPhaseForWeek(week);
 
