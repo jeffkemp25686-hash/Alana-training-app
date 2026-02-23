@@ -5,9 +5,7 @@ function callShowTab(tab) {
   if (window.showTab) window.showTab(tab);
 }
 
-function callNextDay() {
-  if (window.nextDay) window.nextDay();
-}
+
 
 export default function App() {
   const [active, setActive] = useState("today");
@@ -108,10 +106,15 @@ export default function App() {
             />
           </button>
 
-          <button className="navbtn" onClick={callNextDay}>
-            <span className="navicon">⏭️</span>
-            <span className="navlabel">Next</span>
-          </button>
+          <button className="navbtn" onClick={() => window.viewPrevDay?.()}>
+  <span className="navicon">⏮️</span>
+  <span className="navlabel">Back</span>
+</button>
+
+<button className="navbtn" onClick={() => window.viewNextDay?.()}>
+  <span className="navicon">⏭️</span>
+  <span className="navlabel">Next</span>
+</button>
         </nav>
       </footer>
     </div>

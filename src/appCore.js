@@ -84,6 +84,7 @@ const NUTRITION_TARGETS = {
 
 const STORAGE_DAY = "currentTrainingDay";
 const STORAGE_DAY_ABS = "currentTrainingDayAbs"; // counts 0..83 for 12 weeks
+const STORAGE_VIEW_DAY_ABS = "viewTrainingDayAbs"; // browsing day (read-only past)
 
 const SETS_LOG_KEY = "history_sets";
 const RUNS_LOG_KEY = "history_runs";
@@ -194,8 +195,22 @@ function setAbsDay(n) {
   localStorage.setItem(STORAGE_DAY_ABS, String(n));
 }
 
-function getWeekDayLabel() {
-  const abs = getAbsDay(); // 0..83
+
+function getViewAbsDay() {
+  let n = localStorage.getItem(STORAGE_VIEW_DAY_ABS);
+  if (!n) {
+    n = String(getAbsDay()); // default view = current
+    localStorage.setItem(STORAGE_VIEW_DAY_ABS, n);
+  }
+  return parseInt(n, 10);
+}
+
+function setViewAbsDay(n) {
+  localStorage.setItem(STORAGE_VIEW_DAY_ABS, String(n));
+}
+
+function getWeekDayLabel(absOverride) {
+  const abs = Number.isFinite(absOverride) ? absOverride : getAbsDay(); // 0..83
   const week = Math.floor(abs / 7) + 1; // 1..12
   const day = (abs % 7) + 1; // 1..7
   return `Week ${week} • Day ${day}`;
@@ -212,13 +227,14 @@ function getPhaseForWeek(week) {
   return "Peak";
 }
 
-function getPhaseLabel() {
-  const week = getCurrentWeekNumber();
+function getPhaseLabel(absOverride) {
+  const abs = Number.isFinite(absOverride) ? absOverride : getAbsDay();
+  const week = Math.floor(abs / 7) + 1;
   return getPhaseForWeek(week);
 }
 
-window.getWeekDayLabel = getWeekDayLabel;
-window.getPhaseLabel = getPhaseLabel;
+window.getWeekDayLabel = () => getWeekDayLabel(getViewAbsDay());
+window.getPhaseLabel = () => getPhaseLabel(getViewAbsDay());
 
 function applyPhaseToExercise(ex, phase) {
   const nm = String(ex?.name || "");
@@ -253,6 +269,25 @@ function applyPhaseToExercise(ex, phase) {
 
 let __advancing = false;
 
+// Browse days (view-only). Never browse into the future.
+window.viewNextDay = function viewNextDay() {
+  const cur = getAbsDay();
+  const view = getViewAbsDay();
+  const next = Math.min(view + 1, cur);
+  setViewAbsDay(next);
+  renderToday();
+  window.dispatchEvent(new Event("training:dayChanged"));
+};
+
+window.viewPrevDay = function viewPrevDay() {
+  const view = getViewAbsDay();
+  const prev = Math.max(view - 1, 0);
+  setViewAbsDay(prev);
+  renderToday();
+  window.dispatchEvent(new Event("training:dayChanged"));
+};
+
+// Advance program (Finish Workout). Guard against double-advance.
 window.nextDay = function nextDay() {
   if (__advancing) return;
   __advancing = true;
@@ -260,6 +295,7 @@ window.nextDay = function nextDay() {
   try {
     const abs = getAbsDay() + 1;
     setAbsDay(abs);
+    setViewAbsDay(abs); // keep view in sync with current day
 
     const dayIndex = abs % program.length;
     localStorage.setItem(STORAGE_DAY, String(dayIndex));
@@ -272,8 +308,6 @@ window.nextDay = function nextDay() {
     }, 250);
   }
 };
-
-
 // ==========================
 // REST TIMER
 // ==========================
@@ -498,10 +532,17 @@ function getRunPrescription(dayName) {
 // TODAY TAB
 // ==========================
 function renderToday() {
-  const dayIndex = getCurrentDay();
+  const currentAbs = getAbsDay();
+  const viewAbs = getViewAbsDay();
+
+  const dayIndex = viewAbs % program.length;
   const day = program[dayIndex];
 
-  const week = getCurrentWeekNumber();
+  const ss = sessionSuffix(); // matches renderToday input suffix
+
+  const isPast = viewAbs < currentAbs;
+
+  const week = Math.floor(viewAbs / 7) + 1;
   const phase = getPhaseForWeek(week);
 
   const needsRun = todayRequiresRun(day);
@@ -510,6 +551,7 @@ function renderToday() {
   let html = `
     <div class="card">
       <h2>Today</h2>
+      ${isPast ? `<div style="background:#f7f7f7;border:1px solid #ddd;border-radius:12px;padding:10px;margin:10px 0;color:#333;">📅 Viewing past day (read-only). You can re-sync to coach, but you can’t edit or finish.</div>` : ``}
       <div style="color:#666;font-size:13px;margin-top:-6px;margin-bottom:10px;">
         ${getWeekDayLabel()} • Phase: <strong>${getPhaseLabel()}</strong>
       </div>
@@ -595,18 +637,15 @@ const repsKey   = `d${dayIndex}-e${exIndex}-s${s}-r-${ss}`;
               style="padding:10px;width:160px;"
               placeholder="Weight"
               value="${weight}"
-oninput="
-  localStorage.setItem('${weightKey}', this.value);
-  updateOneRMFromKeys('${adj.name}', '${weightKey}', '${repsKey}');
-"            >
+              ${isPast ? "disabled" : ""}
+              oninput="${isPast ? "" : `localStorage.setItem('${weightKey}', this.value); updateOneRMFromKeys('${adj.name}', '${weightKey}', '${repsKey}');`}"
+            >
             <input
               style="padding:10px;width:160px;"
               placeholder="Reps"
               value="${reps}"
-              oninput="
-  localStorage.setItem('${repsKey}', this.value);
-  updateOneRMFromKeys('${adj.name}', '${weightKey}', '${repsKey}');
-"
+              ${isPast ? "disabled" : ""}
+              oninput="${isPast ? "" : `localStorage.setItem('${repsKey}', this.value); updateOneRMFromKeys('${adj.name}', '${weightKey}', '${repsKey}');`}"
             >
           </div>
         </div>
@@ -628,16 +667,16 @@ oninput="
       <p id="syncStatus" style="color:#666; margin-top:8px;"></p>
 
       <button
-  id="finishBtn"
-  onclick="finishWorkout()"
+        id="finishBtn"
+        onclick="finishWorkout()"
         style="padding:10px 12px;cursor:pointer;margin-top:10px;"
-        ${runDone ? "" : "disabled"}
+        ${(isPast || !runDone) ? "disabled" : ""}
       >
         Finish Workout ✅
       </button>
 
       <p id="finishHint" style="color:${runDone ? "#2e7d32" : "#b26a00"}; margin-top:8px;">
-        ${runDone ? "✅ Ready to finish." : "🔒 Finish locked until today’s run is logged."}
+        ${isPast ? "🔒 Read-only past day (can re-sync only)." : (runDone ? "✅ Ready to finish." : "🔒 Finish locked until today’s run is logged.")}
       </p>
 
       <p style="color:green;">✓ Auto saved</p>
@@ -653,13 +692,12 @@ oninput="
 async function syncToCoach() {
   const ts = new Date().toISOString();
   const date = ts.slice(0, 10);
-  const dayIndex = getCurrentDay();
+  const viewAbs = getViewAbsDay();
+  const dayIndex = viewAbs % program.length;
   const day = program[dayIndex];
 
-  const week = getCurrentWeekNumber();
+  const week = Math.floor(viewAbs / 7) + 1;
   const phase = getPhaseForWeek(week);
-
-  const ss = sessionSuffix(); // ✅ same suffix used in renderToday inputs
 
   const setRows = [];
 
@@ -669,7 +707,6 @@ async function syncToCoach() {
     if (exName.toUpperCase().startsWith("RUN_")) return;
 
     for (let s = 1; s <= adj.sets; s++) {
-      // ✅ read the suffixed keys (and fallback to old keys just in case)
       const wKey = `d${dayIndex}-e${exIndex}-s${s}-w-${ss}`;
       const rKey = `d${dayIndex}-e${exIndex}-s${s}-r-${ss}`;
       const wOld = `d${dayIndex}-e${exIndex}-s${s}-w`;
@@ -677,9 +714,8 @@ async function syncToCoach() {
 
       const w = (localStorage.getItem(wKey) || localStorage.getItem(wOld) || "").trim();
       const r = (localStorage.getItem(rKey) || localStorage.getItem(rOld) || "").trim();
-
-      if (w || r) {
-        const rowId = `${ATHLETE}|${date}|ABS${getAbsDay()}|${day.name}|${adj.name}|set${s}`;
+if (w || r) {
+        const rowId = `${ATHLETE}|${date}|ABS${viewAbs}|${day.name}|${adj.name}|set${s}`;
         setRows.push([rowId, ts, ATHLETE, day.name, adj.name, s, adj.reps, w, r]);
       }
     }
@@ -716,26 +752,26 @@ async function syncToCoach() {
 }
 window.syncToCoach = syncToCoach;
 
-
 // ==========================
-// FINISH WORKOUT (AUTO SYNC)
+// FINISH WORKOUT (AUTO SYNC + ADVANCE)
 // ==========================
 window.finishWorkout = async function finishWorkout() {
   const btn = document.getElementById("finishBtn");
   if (btn) btn.disabled = true;
 
   try {
-    // attempt sync first
     if (window.syncToCoach) {
       await window.syncToCoach();
     }
   } catch (e) {
+    // syncToCoach already queues on failure
     console.warn("Sync failed — queued instead");
   }
 
-  // always advance
+  // Always advance (queue handles offline)
   window.nextDay();
 };
+
 
 // ==========================
 // RUN TAB
@@ -1361,6 +1397,8 @@ function updatePendingSyncUI() {
 // BOOT
 // ==========================
 export function bootApp() {
+  if (window.__alanaBooted) return;
+  window.__alanaBooted = true;
   app =
     document.getElementById("app") ||
     document.getElementById("root") ||
@@ -1370,6 +1408,8 @@ export function bootApp() {
 
   initSheetsAutoSync();
   flushSheetsQueue({ max: 20 }).catch(() => {});
+  // Ensure view day is initialised
+  try { getViewAbsDay(); } catch (e) {}
   updateProgressBadge();
 
   // Install queue UI listener ONCE
@@ -1391,6 +1431,3 @@ export function bootApp() {
   }, 0);
 }
 
-// ==========================
-// AUTO-BOOT
-// ==========================
