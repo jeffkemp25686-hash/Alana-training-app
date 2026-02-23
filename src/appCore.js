@@ -86,10 +86,27 @@ const STORAGE_DAY = "currentTrainingDay";
 const STORAGE_DAY_ABS = "currentTrainingDayAbs"; // counts 0..83 for 12 weeks
 const STORAGE_VIEW_DAY_ABS = "viewTrainingDayAbs"; // browsing day (read-only past)
 const STORAGE_PROGRAM_START = "programStartDate";
+const STORAGE_COACH_MODE = "coachMode";
 const SETS_LOG_KEY = "history_sets";
 const RUNS_LOG_KEY = "history_runs";
 const NUTRI_LOG_KEY = "history_nutrition";
 const BODY_LOG_KEY = "history_body";
+function isCoachMode() {
+  return localStorage.getItem(STORAGE_COACH_MODE) === "1";
+}
+
+function enableCoachMode() {
+  localStorage.setItem(STORAGE_COACH_MODE, "1");
+  location.reload();
+}
+
+function disableCoachMode() {
+  localStorage.removeItem(STORAGE_COACH_MODE);
+  location.reload();
+}
+
+window.enableCoachMode = enableCoachMode;
+window.disableCoachMode = disableCoachMode;
 function getProgramStartDate() {
   let d = localStorage.getItem(STORAGE_PROGRAM_START);
   if (!d) {
@@ -563,7 +580,7 @@ function renderToday() {
 
  const ss = sessionSuffixForAbs(viewAbs); // matches renderToday input suffix
 
-  const isPast = viewAbs < currentAbs;
+ const isPast = !isCoachMode() && viewAbs < currentAbs;
 
   const week = Math.floor(viewAbs / 7) + 1;
   const phase = getPhaseForWeek(week);
