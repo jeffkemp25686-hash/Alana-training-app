@@ -628,8 +628,8 @@ oninput="
       <p id="syncStatus" style="color:#666; margin-top:8px;"></p>
 
       <button
-        id="finishBtn"
-        onclick="nextDay()"
+  id="finishBtn"
+  onclick="finishWorkout()"
         style="padding:10px 12px;cursor:pointer;margin-top:10px;"
         ${runDone ? "" : "disabled"}
       >
@@ -714,7 +714,29 @@ async function syncToCoach() {
     if (el) el.textContent = `📥 Offline/failed — saved to queue. Pending: ${pending}`;
   }
 }
+}
 window.syncToCoach = syncToCoach;
+
+
+// ==========================
+// FINISH WORKOUT (AUTO SYNC)
+// ==========================
+window.finishWorkout = async function finishWorkout() {
+  const btn = document.getElementById("finishBtn");
+  if (btn) btn.disabled = true;
+
+  try {
+    // attempt sync first
+    if (window.syncToCoach) {
+      await window.syncToCoach();
+    }
+  } catch (e) {
+    console.warn("Sync failed — queued instead");
+  }
+
+  // always advance
+  window.nextDay();
+};
 
 // ==========================
 // RUN TAB
