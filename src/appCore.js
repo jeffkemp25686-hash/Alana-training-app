@@ -85,12 +85,35 @@ const NUTRITION_TARGETS = {
 const STORAGE_DAY = "currentTrainingDay";
 const STORAGE_DAY_ABS = "currentTrainingDayAbs"; // counts 0..83 for 12 weeks
 const STORAGE_VIEW_DAY_ABS = "viewTrainingDayAbs"; // browsing day (read-only past)
-
+const STORAGE_PROGRAM_START = "programStartDate";
 const SETS_LOG_KEY = "history_sets";
 const RUNS_LOG_KEY = "history_runs";
 const NUTRI_LOG_KEY = "history_nutrition";
 const BODY_LOG_KEY = "history_body";
+function getProgramStartDate() {
+  let d = localStorage.getItem(STORAGE_PROGRAM_START);
+  if (!d) {
+    d = todayDateStr(); // first use = Week 1 Day 1
+    localStorage.setItem(STORAGE_PROGRAM_START, d);
+  }
+  return d;
+}
 
+function addDays(yyyyMmDd, days) {
+  const [y, m, d] = yyyyMmDd.split("-").map(Number);
+  const dt = new Date(y, m - 1, d);
+  dt.setDate(dt.getDate() + days);
+
+  const yy = dt.getFullYear();
+  const mm = String(dt.getMonth() + 1).padStart(2, "0");
+  const dd = String(dt.getDate()).padStart(2, "0");
+
+  return `${yy}-${mm}-${dd}`;
+}
+
+function sessionSuffixForAbs(absDay) {
+  return addDays(getProgramStartDate(), absDay);
+}
 // ==========================
 // PROGRAM
 // ==========================
@@ -538,7 +561,7 @@ function renderToday() {
   const dayIndex = viewAbs % program.length;
   const day = program[dayIndex];
 
-  const ss = sessionSuffix(); // matches renderToday input suffix
+ const ss = sessionSuffixForAbs(viewAbs); // matches renderToday input suffix
 
   const isPast = viewAbs < currentAbs;
 
@@ -622,8 +645,8 @@ html += `
 `;
 
     for (let s = 1; s <= adj.sets; s++) {
-      const ss = sessionSuffix();
-const weightKey = `d${dayIndex}-e${exIndex}-s${s}-w-${ss}`;
+const viewAbs = getViewAbsDay();
+const ss = sessionSuffixForAbs(viewAbs);const weightKey = `d${dayIndex}-e${exIndex}-s${s}-w-${ss}`;
 const repsKey   = `d${dayIndex}-e${exIndex}-s${s}-r-${ss}`;
 
       const weight = localStorage.getItem(weightKey) || "";
