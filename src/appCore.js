@@ -714,7 +714,6 @@ async function syncToCoach() {
     if (el) el.textContent = `📥 Offline/failed — saved to queue. Pending: ${pending}`;
   }
 }
-}
 window.syncToCoach = syncToCoach;
 
 
