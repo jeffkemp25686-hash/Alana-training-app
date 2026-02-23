@@ -253,8 +253,6 @@ function applyPhaseToExercise(ex, phase) {
 
 let __advancing = false;
 
-let __advancing = false;
-
 window.nextDay = function nextDay() {
   if (__advancing) return;
   __advancing = true;
