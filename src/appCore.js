@@ -683,11 +683,21 @@ const repsKey   = `d${dayIndex}-e${exIndex}-s${s}-r-${ss}`;
     `;
   });
 
-  html += `
+ html += `
       <button onclick="syncToCoach()" style="padding:10px 12px;cursor:pointer;">
         Sync to Coach ✅
       </button>
       <p id="syncStatus" style="color:#666; margin-top:8px;"></p>
+
+      ${
+        isPast
+          ? `
+            <button onclick="pullSetsFromCoachForViewedDay()" style="padding:10px 12px;cursor:pointer;margin-top:10px;">
+              Pull from Coach ⬇️ (Sets)
+            </button>
+          `
+          : ""
+      }
 
       <button
         id="finishBtn"
@@ -699,14 +709,18 @@ const repsKey   = `d${dayIndex}-e${exIndex}-s${s}-r-${ss}`;
       </button>
 
       <p id="finishHint" style="color:${runDone ? "#2e7d32" : "#b26a00"}; margin-top:8px;">
-        ${isPast ? "🔒 Read-only past day (can re-sync only)." : (runDone ? "✅ Ready to finish." : "🔒 Finish locked until today’s run is logged.")}
+        ${
+          isPast
+            ? "🔒 Read-only past day (can re-sync only)."
+            : (runDone ? "✅ Ready to finish." : "🔒 Finish locked until today’s run is logged.")
+        }
       </p>
 
       <p style="color:green;">✓ Auto saved</p>
     </div>
   `;
 
-  app.innerHTML = html;
+app.innerHTML = html;
 }
 
 // ==========================
@@ -774,7 +788,51 @@ if (w || r) {
   }
 }
 window.syncToCoach = syncToCoach;
+window.pullSetsFromCoachForViewedDay = async function pullSetsFromCoachForViewedDay() {
+  const athlete = "Alana"; // hardcoded for now
+  const viewAbs = getViewAbsDay();
+  const dayIndex = viewAbs % program.length;
+  const day = program[dayIndex];
+  const ss = sessionSuffixForAbs(viewAbs); // YYYY-MM-DD
+  const date = ss;
 
+  const el = document.getElementById("syncStatus");
+  if (el) el.textContent = "⬇️ Pulling from coach…";
+
+  const qs = new URLSearchParams({
+    action: "getSets",
+    athlete,
+    date,
+    abs: String(viewAbs),
+  });
+
+  const res = await fetch(`${SHEETS_URL}?${qs.toString()}`);
+  const data = await res.json();
+
+  const rows = Array.isArray(data?.setRows) ? data.setRows : [];
+  let applied = 0;
+
+  rows.forEach((r) => {
+    const exName = String(r[4] || "");
+    const setNum = Number(r[5] || 0);
+    const w = String(r[7] ?? "").trim();
+    const reps = String(r[8] ?? "").trim();
+    if (!exName || !setNum) return;
+
+    const exIndex = (day.exercises || []).findIndex((ex) => String(ex.name || "") === exName);
+    if (exIndex < 0) return;
+
+    const wKey = `d${dayIndex}-e${exIndex}-s${setNum}-w-${ss}`;
+    const rKey = `d${dayIndex}-e${exIndex}-s${setNum}-r-${ss}`;
+
+    if (w) localStorage.setItem(wKey, w);
+    if (reps) localStorage.setItem(rKey, reps);
+    applied++;
+  });
+
+  renderToday();
+  if (el) el.textContent = applied ? `✅ Pulled ${applied} entries from coach.` : "ℹ️ No sets found for that day.";
+};
 // ==========================
 // FINISH WORKOUT (AUTO SYNC + ADVANCE)
 // ==========================
