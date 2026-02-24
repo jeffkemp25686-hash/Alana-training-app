@@ -70,7 +70,7 @@ function updateProgressBadge() {
 // CONFIG
 // ==========================
 const SHEETS_URL =
-  https://script.google.com/macros/s/AKfycbyxnqtM-JHiCmjXcMtXNMelSdPL_QKTpL0DhEMtCo38I_Cc0DV9LBQbXiEom0rHaRxu/exec
+  "https://script.google.com/macros/s/AKfycbyxnqtM-JHiCmjXcMtXNMelSdPL_QKTpL0DhEMtCo38I_Cc0DV9LBQbXiEom0rHaRxu/exec";
 const ATHLETE = "Alana";
 
 const NUTRITION_TARGETS = {
