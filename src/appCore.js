@@ -832,11 +832,7 @@ if (!rows.length) {
   return;
 }
 
-// IMPORTANT: use VIEWED day, not current day
-const viewAbs = getViewAbsDay();
-const dayIndex = viewAbs % program.length;
-const day = program[dayIndex];
-const date = sessionSuffixForAbs(viewAbs);
+// IMPORTANT: use VIEWED day, not current da
 
 // map rows → localStorage keys used by renderToday()
 rows.forEach(r => {
