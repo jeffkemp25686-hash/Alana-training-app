@@ -1919,6 +1919,33 @@ export function bootApp(opts = {}) {
 
       if (cid === "alana") rawRemove(key);
     };
+    // --------------------------
+    // SAFARI FIX: filter Object.keys(localStorage) by active client
+    // Safari exposes localStorage keys via Object.keys and some parts of the app
+    // scan keys for progress/history. Without filtering, Blake can "see" Alana's legacy keys.
+    // --------------------------
+    if (!window.__trainingObjectKeysPatched) {
+      window.__trainingObjectKeysPatched = true;
+      const rawObjectKeys = Object.keys.bind(Object);
+      Object.keys = (obj) => {
+        const keys = rawObjectKeys(obj);
+        if (obj !== localStorage) return keys;
+
+        const cid = window.__trainingActiveClientId || "alana";
+        const prefix = `client:${cid}:`;
+
+        return keys.filter((k) => {
+          if (k === `pin_ok:${cid}`) return true;
+          if (k.startsWith(prefix)) return true;
+
+          // Alana migration: allow legacy un-namespaced keys ONLY for Alana
+          if (cid === "alana" && !k.startsWith("client:") && !k.startsWith("pin_ok:")) return true;
+
+          return false;
+        });
+      };
+    }
+
   }
 
   app =
