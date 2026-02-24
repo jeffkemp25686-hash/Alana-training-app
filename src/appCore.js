@@ -133,7 +133,13 @@ function sessionSuffixForAbs(absDay) {
 // ==========================
 // PROGRAM
 // ==========================
-const program = [
+// ==========================
+// PROGRAMS (per client)
+// - Keep Alana EXACTLY as-is
+// - Add Blake as separate program (can change later)
+// ==========================
+const PROGRAMS = {
+  alana: [
   {
     name: "Lower Body Strength",
     exercises: [
@@ -192,15 +198,62 @@ const program = [
     name: "Long Easy Run",
     exercises: [{ name: "RUN_LONG", sets: 1, reps: 1 }],
   },
-];
+],
+  blake: [
+  {
+    name: "Full Body Strength",
+    exercises: [
+      { name: "Goblet Squat", sets: 3, reps: 10 },
+      { name: "Dumbbell Bench Press", sets: 3, reps: 10 },
+      { name: "Seated Row", sets: 3, reps: 12 },
+      { name: "Romanian Deadlift", sets: 3, reps: 10 },
+      { name: "Plank", sets: 3, reps: 60, timerSec: 60 },
+    ],
+  },
+  {
+    name: "Run + Mobility",
+    exercises: [
+      { name: "RUN_SESSION", sets: 1, reps: 1 },
+      { name: "45–60 min walk / mobility", sets: 1, reps: 1 },
+    ],
+  },
+  {
+    name: "Upper / Arms",
+    exercises: [
+      { name: "Machine Shoulder Press", sets: 3, reps: 10 },
+      { name: "Lat Pulldown", sets: 3, reps: 10 },
+      { name: "Incline Dumbbell Press", sets: 3, reps: 10 },
+      { name: "Lateral Raise", sets: 3, reps: 15 },
+      { name: "Biceps Curl", sets: 3, reps: 12 },
+      { name: "Triceps Pushdown", sets: 3, reps: 12 },
+    ],
+  },
+  {
+    name: "Lower / Conditioning",
+    exercises: [
+      { name: "Leg Press", sets: 4, reps: 12 },
+      { name: "Leg Curl", sets: 3, reps: 12 },
+      { name: "Calf Raises", sets: 4, reps: 15 },
+      { name: "Bike / Row 15–20 min easy", sets: 1, reps: 1 },
+    ],
+  },
+],
+};
+
+function getProgramForClient(clientId) {
+  const cid = normalizeClientId(clientId);
+  return PROGRAMS[cid] || PROGRAMS.alana;
+}
+
+function getActiveProgram() {
+  return getProgramForClient(window.__trainingActiveClientId);
+}
+
 
 // ==========================
 // NAVIGATION
 // ==========================
 function showTab(tab) {
-  // Remember last visible tab (used when switching clients)
-  window.__trainingLastTab = tab;
-
   if (tab === "today") renderToday();
   if (tab === "run") renderRun();
   if (tab === "nutrition") renderNutrition();
@@ -342,7 +395,7 @@ window.nextDay = function nextDay() {
     setAbsDay(abs);
     setViewAbsDay(abs); // keep view in sync with current day
 
-    const dayIndex = abs % program.length;
+    const dayIndex = abs % getActiveProgram().length;
     localStorage.setItem(STORAGE_DAY, String(dayIndex));
 
     renderToday();
@@ -580,8 +633,8 @@ function renderToday() {
   const currentAbs = getAbsDay();
   const viewAbs = getViewAbsDay();
 
-  const dayIndex = viewAbs % program.length;
-  const day = program[dayIndex];
+  const dayIndex = viewAbs % getActiveProgram().length;
+  const day = getActiveProgram()[dayIndex];
 
  const ss = sessionSuffixForAbs(viewAbs); // matches renderToday input suffix
 
@@ -752,8 +805,8 @@ async function syncToCoach() {
   const ts = new Date().toISOString();
   const date = ts.slice(0, 10);
   const viewAbs = getViewAbsDay();
-  const dayIndex = viewAbs % program.length;
-  const day = program[dayIndex];
+  const dayIndex = viewAbs % getActiveProgram().length;
+  const day = getActiveProgram()[dayIndex];
 const ss = sessionSuffixForAbs(viewAbs);
   const week = Math.floor(viewAbs / 7) + 1;
   const phase = getPhaseForWeek(week);
@@ -813,8 +866,8 @@ window.syncToCoach = syncToCoach;
 window.pullSetsFromCoachForViewedDay = async function pullSetsFromCoachForViewedDay() {
   const athlete = "Alana"; // hardcoded for now
   const viewAbs = getViewAbsDay();
-  const dayIndex = viewAbs % program.length;
-  const day = program[dayIndex];
+  const dayIndex = viewAbs % getActiveProgram().length;
+  const day = getActiveProgram()[dayIndex];
   const ss = sessionSuffixForAbs(viewAbs); // YYYY-MM-DD
   const date = ss;
 
@@ -902,7 +955,7 @@ window.finishWorkout = async function finishWorkout() {
 // ==========================
 function renderRun() {
   const dayIndex = getCurrentDay();
-  const day = program[dayIndex];
+  const day = getActiveProgram()[dayIndex];
   const date = todayRunDate();
 
   const prescription = getRunPrescription(day?.name || "");
@@ -1445,7 +1498,7 @@ async function renderCharts() {
   if (!exSelect) return;
 
   const names = [];
-  program.forEach((d) =>
+  getActiveProgram().forEach((d) =>
     d.exercises.forEach((ex) => {
       const nm = String(ex.name || "");
       if (nm.toUpperCase().startsWith("RUN_")) return;
@@ -1518,125 +1571,11 @@ function updatePendingSyncUI() {
 }
 
 // ==========================
-// MULTI-CLIENT (FOUNDATION)
-// - Namespaces ALL localStorage keys per client
-// - Migration-safe for legacy (Alana) keys
-// ==========================
-
-const ACTIVE_CLIENT_ID_KEY = "training_activeClientId";
-
-function normalizeClientId(id) {
-  const s = String(id || "").trim().toLowerCase();
-  return s || "alana";
-}
-
-function clientPrefix(clientId) {
-  return `client:${clientId}:`;
-}
-
-function installNamespacedLocalStorage(clientId) {
-  const cid = normalizeClientId(clientId);
-
-  // Install once; switching client only changes window.__trainingActiveClientId
-  if (!window.__trainingLocalStoragePatched) {
-    window.__trainingLocalStoragePatched = true;
-
-    const proto = typeof Storage !== "undefined" ? Storage.prototype : null;
-    if (!proto) return;
-
-    const orig = {
-      getItem: proto.getItem,
-      setItem: proto.setItem,
-      removeItem: proto.removeItem,
-      key: proto.key,
-      clear: proto.clear,
-    };
-    window.__trainingLocalStorageOrig = orig;
-
-    function prefixedKey(k) {
-      const active = normalizeClientId(window.__trainingActiveClientId);
-      return clientPrefix(active) + String(k);
-    }
-
-    function isLegacyClient() {
-      return normalizeClientId(window.__trainingActiveClientId) === "alana";
-    }
-
-    // Read prefixed; for legacy client (Alana) fallback to unprefixed legacy keys.
-    proto.getItem = function (k) {
-      const key = String(k);
-      try {
-        const v = orig.getItem.call(this, prefixedKey(key));
-        if (v !== null) return v;
-        if (isLegacyClient()) return orig.getItem.call(this, key);
-        return null;
-      } catch {
-        return orig.getItem.call(this, key);
-      }
-    };
-
-    // Write prefixed; for legacy client (Alana) also write legacy key (migration-safe).
-    proto.setItem = function (k, v) {
-      const key = String(k);
-      const val = String(v);
-      if (isLegacyClient()) orig.setItem.call(this, key, val);
-      return orig.setItem.call(this, prefixedKey(key), val);
-    };
-
-    proto.removeItem = function (k) {
-      const key = String(k);
-      if (isLegacyClient()) orig.removeItem.call(this, key);
-      return orig.removeItem.call(this, prefixedKey(key));
-    };
-
-    // Safer clear(): only clears THIS client's keys (does not wipe whole origin).
-    proto.clear = function () {
-      const active = normalizeClientId(window.__trainingActiveClientId);
-      const prefix = clientPrefix(active);
-      const toDelete = [];
-      for (let i = 0; i < this.length; i++) {
-        const k = orig.key.call(this, i);
-        if (k && String(k).startsWith(prefix)) toDelete.push(k);
-      }
-      toDelete.forEach((k) => orig.removeItem.call(this, k));
-      // Intentionally do NOT clear legacy keys automatically.
-    };
-  }
-
-  window.__trainingActiveClientId = cid;
-  // Persist active client using original (unpatched) storage if possible.
-  try {
-    const orig = window.__trainingLocalStorageOrig;
-    if (orig?.setItem) orig.setItem.call(window.localStorage, ACTIVE_CLIENT_ID_KEY, cid);
-    else window.localStorage.setItem(ACTIVE_CLIENT_ID_KEY, cid);
-  } catch {}
-}
-
-export function setActiveClient(clientId) {
-  installNamespacedLocalStorage(clientId);
-  window.dispatchEvent(
-    new CustomEvent("training:clientChanged", {
-      detail: { clientId: normalizeClientId(clientId) },
-    })
-  );
-  try {
-    if (window.__trainingLastTab && window.showTab) window.showTab(window.__trainingLastTab);
-  } catch {}
-}
-
-// expose for UI
-window.setActiveClient = setActiveClient;
-
-// ==========================
 // BOOT
 // ==========================
-export function bootApp(opts = {}) {
+export function bootApp() {
   if (window.__alanaBooted) return;
   window.__alanaBooted = true;
-
-  // Install namespaced storage (defaults to Alana, migration-safe)
-  installNamespacedLocalStorage(opts.clientId);
-
   app =
     document.getElementById("app") ||
     document.getElementById("root") ||
