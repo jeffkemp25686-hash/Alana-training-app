@@ -118,7 +118,8 @@ window.disableCoachMode = disableCoachMode;
 function getProgramStartDate() {
   let d = localStorage.getItem(STORAGE_PROGRAM_START);
   if (!d) {
-    d = todayDateStr(); // first use = Week 1 Day 1
+        const cid = normalizeClientId(window.__trainingActiveClientId || 'alana');
+    d = (cid === 'blake') ? '2026-03-02' : todayDateStr(); // first use = Week 1 Day 1
     localStorage.setItem(STORAGE_PROGRAM_START, d);
   }
   return d;
@@ -361,17 +362,58 @@ function getCurrentWeekNumber() {
   return Math.floor(abs / 7) + 1; // 1..12
 }
 
-function getPhaseForWeek(week) {
+function getActiveClientId() {
+  return normalizeClientId(window.__trainingActiveClientId || "alana");
+}
+
+function getMicroWeek(week) {
+  // 1..4 repeating
+  return ((week - 1) % 4) + 1;
+}
+
+function getMicroLabel(microWeek) {
+  if (microWeek === 1) return "Accumulate";
+  if (microWeek === 2) return "Build";
+  if (microWeek === 3) return "Overreach";
+  return "Deload";
+}
+
+// Blake: Mar 2, 2026 start → peak into September trials (SG Ball)
+function getBlakeMacroPhaseForWeek(week) {
+  // ~26 weeks from Mar 2 to end of Aug (peak heading into Sept)
+  if (week <= 12) return "Build";
+  if (week <= 20) return "Convert";
+  return "Peak";
+}
+
+// Alana: keep original simple 12-week flow
+function getAlanaPhaseForWeek(week) {
   if (week <= 4) return "Base";
   if (week <= 8) return "Build";
   return "Peak";
 }
 
+function getPhaseForWeek(week) {
+  const cid = getActiveClientId();
+  return cid === "blake" ? getBlakeMacroPhaseForWeek(week) : getAlanaPhaseForWeek(week);
+}
+
 function getPhaseLabel(absOverride) {
   const abs = Number.isFinite(absOverride) ? absOverride : getAbsDay();
   const week = Math.floor(abs / 7) + 1;
-  return getPhaseForWeek(week);
+  const phase = getPhaseForWeek(week);
+  const microWeek = getMicroWeek(week);
+  const microWeek = getMicroWeek(week);
+
+  // Add microcycle label for Blake (4-week wave)
+  if (getActiveClientId() === "blake") {
+    const mw = getMicroWeek(week);
+    return `${phase} • ${getMicroLabel(mw)} (W${mw}/4)`;
+  }
+
+  return phase;
 }
+
 
 window.getWeekDayLabel = () => getWeekDayLabel(getViewAbsDay());
 window.getPhaseLabel = () => getPhaseLabel(getViewAbsDay());
@@ -379,13 +421,72 @@ window.getViewAbsDay = getViewAbsDay;
 window.sessionSuffixForAbs = sessionSuffixForAbs;
 window.getAbsDay = getAbsDay;
 window.getProgramStartDate = getProgramStartDate;
-function applyPhaseToExercise(ex, phase) {
+function applyPhaseToExercise(ex, phase, microWeek = 1) {
   const nm = String(ex?.name || "");
   if (nm.toUpperCase().startsWith("RUN_")) return ex;
 
   const out = { ...ex };
   if (!Number.isFinite(out.sets) || !Number.isFinite(out.reps)) return out;
 
+  const cid = getActiveClientId();
+
+  // --------------------------
+  // Blake: strength/power athlete — adjust volume by macro + deload
+  // --------------------------
+  if (cid === "blake") {
+    const low = nm.toLowerCase();
+    const isMainStrength =
+      low.includes("back squat") ||
+      (low.includes("squat") && !low.includes("speed")) ||
+      low.includes("bench press") ||
+      low.includes("front squat") ||
+      low.includes("romanian deadlift") ||
+      low.includes("rdl") ||
+      low.includes("weighted chin") ||
+      low.includes("chin up") ||
+      low.includes("clean pull");
+
+    const isPower =
+      low.includes("power clean") ||
+      low.includes("hang power clean") ||
+      low.includes("trap bar jump") ||
+      low.includes("plyo") ||
+      low.includes("med ball") ||
+      low.includes("speed squat") ||
+      low.includes("push press");
+
+    // Macro phase adjustments (keep templates; tweak fatigue)
+    if (phase === "Convert") {
+      // slightly lower reps, keep intent high
+      if (isMainStrength) out.reps = Math.min(out.reps, 5);
+      if (isPower) out.reps = Math.min(out.reps, 3);
+    }
+
+    if (phase === "Peak") {
+      // low fatigue: maintain strength, maximize speed
+      if (isMainStrength) {
+        out.sets = Math.max(3, Math.min(out.sets, 4));
+        out.reps = Math.min(out.reps, 4);
+      }
+      if (isPower) {
+        out.sets = Math.max(4, Math.min(out.sets, 6));
+        out.reps = Math.min(out.reps, 2);
+      }
+    }
+
+    // 4-week wave: deload on week 4
+    if (microWeek === 4) {
+      out.sets = Math.max(2, out.sets - 1);
+      // keep power crisp; reduce reps slightly for heavy work
+      if (isMainStrength) out.reps = Math.max(3, Math.round(out.reps * 0.8));
+    }
+
+    return out;
+  }
+
+  // --------------------------
+  // Alana: keep original behaviour
+  // --------------------------
   if (phase === "Base") out.reps = out.reps + 2;
 
   if (phase === "Build") {
@@ -409,6 +510,7 @@ function applyPhaseToExercise(ex, phase) {
 
   return out;
 }
+
 
 let __advancing = false;
 
@@ -451,6 +553,137 @@ window.nextDay = function nextDay() {
     }, 250);
   }
 };
+
+function getRestSecondsForExercise(exName, phase) {
+  const nm = String(exName || "").toLowerCase();
+  const cid = getActiveClientId();
+
+  // Defaults
+  let rest = 60;
+
+  const isPower =
+    nm.includes("power clean") ||
+    nm.includes("hang power clean") ||
+    nm.includes("trap bar jump") ||
+    nm.includes("plyo") ||
+    nm.includes("med ball") ||
+    nm.includes("speed squat") ||
+    nm.includes("push press");
+
+  const isHeavyCompound =
+    nm.includes("back squat") ||
+    nm.includes("front squat") ||
+    nm.includes("bench press") ||
+    nm.includes("romanian deadlift") ||
+    nm.includes("deadlift") ||
+    nm.includes("clean pull") ||
+    nm.includes("weighted chin") ||
+    nm.includes("chin up");
+
+  const isCarryOrSled =
+    nm.includes("carry") || nm.includes("sled");
+
+  if (isPower) rest = 120;
+  if (isHeavyCompound) rest = 180;
+  if (isCarryOrSled) rest = 120;
+
+  // Peak phase: keep quality high but reduce total time a bit
+  if (cid === "blake" && String(phase).startsWith("Peak")) rest = Math.max(90, rest - 30);
+
+  return rest;
+}
+
+function getRpeTargetText(exName, phase, microWeek) {
+  const nm = String(exName || "").toLowerCase();
+  const cid = getActiveClientId();
+
+  // Simple defaults
+  let rpe = "RPE 7–8";
+
+  const isPower =
+    nm.includes("power clean") ||
+    nm.includes("hang power clean") ||
+    nm.includes("trap bar jump") ||
+    nm.includes("plyo") ||
+    nm.includes("med ball") ||
+    nm.includes("speed squat");
+
+  const isMainStrength =
+    nm.includes("back squat") ||
+    nm.includes("bench press") ||
+    nm.includes("front squat") ||
+    nm.includes("romanian deadlift") ||
+    nm.includes("clean pull") ||
+    nm.includes("weighted chin");
+
+  if (isPower) rpe = "Power: fast reps (leave 2–3 reps in reserve)";
+
+  if (cid === "blake") {
+    const micro = Number(microWeek) || 1;
+
+    if (isMainStrength) {
+      if (micro === 1) rpe = "Target: RPE 7 (smooth)";
+      if (micro === 2) rpe = "Target: RPE 8 (heavy but clean)";
+      if (micro === 3) rpe = "Target: RPE 8–9 (top effort, no grind)";
+      if (micro === 4) rpe = "Deload: RPE 6–7 (speed + technique)";
+    }
+
+    if (String(phase).startsWith("Peak") && isMainStrength) {
+      rpe = "Peak: RPE 7–8 (keep strength, stay fresh)";
+    }
+  }
+
+  return rpe;
+}
+
+// ==========================
+// SESSION TIMER (90+ mins target)
+// ==========================
+let __sessionTimerInterval = null;
+
+function sessionKeyForToday() {
+  const abs = getViewAbsDay();
+  const ss = sessionSuffixForAbs(abs);
+  return `sessionStart_${ss}`;
+}
+
+function formatMMSS(sec) {
+  const m = Math.floor(sec / 60);
+  const s = sec % 60;
+  return `${m}:${String(s).padStart(2, "0")}`;
+}
+
+function startSessionTimer() {
+  const k = sessionKeyForToday();
+  if (!localStorage.getItem(k)) {
+    localStorage.setItem(k, String(Date.now()));
+  }
+  tickSessionTimer();
+  if (__sessionTimerInterval) clearInterval(__sessionTimerInterval);
+  __sessionTimerInterval = setInterval(tickSessionTimer, 1000);
+}
+
+function resetSessionTimer() {
+  const k = sessionKeyForToday();
+  localStorage.removeItem(k);
+  tickSessionTimer();
+}
+
+function tickSessionTimer() {
+  const el = document.getElementById("sessionTimer");
+  if (!el) return;
+  const k = sessionKeyForToday();
+  const start = Number(localStorage.getItem(k) || 0);
+  if (!start) {
+    el.textContent = "Session: 0:00 / 90:00";
+    return;
+  }
+  const sec = Math.max(0, Math.floor((Date.now() - start) / 1000));
+  el.textContent = `Session: ${formatMMSS(sec)} / 90:00`;
+}
+window.startSessionTimer = startSessionTimer;
+window.resetSessionTimer = resetSessionTimer;
+
 // ==========================
 // REST TIMER
 // ==========================
@@ -698,6 +931,11 @@ function renderToday() {
       <div style="color:#666;font-size:13px;margin-top:-6px;margin-bottom:10px;">
         ${getWeekDayLabel()} • Phase: <strong>${getPhaseLabel()}</strong>
       </div>
+      <div id="sessionTimer" style="margin:8px 0 12px 0;font-weight:800;">Session: 0:00 / 90:00</div>
+      <div style="display:flex;gap:10px;flex-wrap:wrap;margin-bottom:10px;">
+        <button onclick="startSessionTimer()" style="padding:10px 12px;cursor:pointer;">Start Session ⏱️</button>
+        <button onclick="resetSessionTimer()" style="padding:10px 12px;cursor:pointer;">Reset</button>
+      </div>
       <h3>${day.name}</h3>
   `;
 
@@ -719,7 +957,7 @@ function renderToday() {
   }
 
   day.exercises.forEach((ex, exIndex) => {
-    const adj = applyPhaseToExercise(ex, phase);
+    const adj = applyPhaseToExercise(ex, phase, microWeek);
     const exName = String(adj.name || "");
 
     if (exName.toUpperCase().startsWith("RUN_")) return;
@@ -756,11 +994,14 @@ if (isTimed) {
 const suggestion = getSuggestion(dayIndex, exIndex, adj.reps, adj.name);
    const rm = getOneRM(adj.name);
 const t80 = target80(adj.name);
+const restSec = getRestSecondsForExercise(adj.name, phase);
+const rpeText = getRpeTargetText(adj.name, phase, microWeek);
 html += `
       <h4>${adj.name} — ${adj.sets} x ${adj.reps}</h4>
       <small style="color:#666;">
     ${rm ? `1RM: ${rm.toFixed(1)} kg • 80%: ${t80.toFixed(1)} kg` : `1RM: — (log a set to auto-calc)`}
     ${suggestion ? `<br>Suggested next time: ${suggestion} kg` : ""}
+    <br><strong>${rpeText}</strong> • Rest: ${restSec}s
   </small>
 `;
 
@@ -796,8 +1037,8 @@ const repsKey   = `d${dayIndex}-e${exIndex}-s${s}-r-${ss}`;
     }
 
     html += `
-      <button onclick="startRestTimer(this)" style="padding:10px 12px;cursor:pointer;margin-bottom:10px;">
-        Start 60s Rest
+      <button data-rest="${restSec}" onclick="startRestTimer(this)" style="padding:10px 12px;cursor:pointer;margin-bottom:10px;">
+        Start ${restSec}s Rest
       </button>
       <hr>
     `;
@@ -841,6 +1082,10 @@ const repsKey   = `d${dayIndex}-e${exIndex}-s${s}-r-${ss}`;
   `;
 
 app.innerHTML = html;
+  // keep session timer display live
+  tickSessionTimer();
+  const k = sessionKeyForToday();
+  if (localStorage.getItem(k)) startSessionTimer();
 }
 
 // ==========================
@@ -859,7 +1104,7 @@ const ss = sessionSuffixForAbs(viewAbs);
   const setRows = [];
 
   day.exercises.forEach((ex, exIndex) => {
-    const adj = applyPhaseToExercise(ex, phase);
+    const adj = applyPhaseToExercise(ex, phase, microWeek);
     const exName = String(adj.name || "");
     if (exName.toUpperCase().startsWith("RUN_")) return;
 

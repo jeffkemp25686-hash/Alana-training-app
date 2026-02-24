@@ -11,7 +11,7 @@ function getClientFromURL() {
 // ✅ Set a PIN per client (change these)
 // - Use "" (empty) to disable PIN for that client
 const CLIENT_PINS = {
-  alana: "1357",        // e.g. "1234" to require a PIN for Alana
+  alana: "",        // e.g. "1234" to require a PIN for Alana
   blake: "2468",    // change this before sharing Blake's link
 };
 
