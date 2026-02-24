@@ -827,7 +827,19 @@ window.pullSetsFromCoachForViewedDay = async function pullSetsFromCoachForViewed
 
   const res = await fetch(`${SHEETS_URL}?${qs.toString()}`);
   const data = await res.json();
+console.log("PULL params", {
+  athlete,
+  viewAbs,
+  date,
+  dayIndex,
+  dayName: day?.name
+});
 
+console.log(
+  "PULL rows count",
+  Array.isArray(data.setRows) ? data.setRows.length : "no setRows",
+  data
+);
   const rows = Array.isArray(data.setRows) ? data.setRows : [];
 
 if (!rows.length) {
@@ -839,6 +851,7 @@ if (!rows.length) {
 
 // map rows → localStorage keys used by renderToday()
 rows.forEach(r => {
+  console.log("Row exName:", r[4], "set:", r[5], "w:", r[7], "r:", r[8]);
   const exName = r[4];
   const setNum = Number(r[5]);
   const weight = r[7];
@@ -846,7 +859,7 @@ rows.forEach(r => {
 
   const exIndex = day.exercises.findIndex(ex => String(ex.name) === String(exName));
   if (exIndex < 0) return;
-
+console.log("Match exIndex", exIndex, "for", exName, "in day", day.name);
   const wKey = `d${dayIndex}-e${exIndex}-s${setNum}-w-${date}`;
   const rKey = `d${dayIndex}-e${exIndex}-s${setNum}-r-${date}`;
 
