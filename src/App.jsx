@@ -1,3 +1,7 @@
+
+// Client is now locked via URL (?client=)
+// Any client selector UI should be removed or disabled.
+
 import { useEffect, useState } from "react";
 import { bootApp } from "./appCore";
 
