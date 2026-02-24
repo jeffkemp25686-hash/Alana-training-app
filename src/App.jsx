@@ -12,7 +12,7 @@ function getClientFromURL() {
 // - Use "" (empty) to disable PIN for that client
 const CLIENT_PINS = {
   alana: "",        // e.g. "1234" to require a PIN for Alana
-  blake: "2468",    // change this before sharing Blake's link
+  blake: "2468",    // change this before sharing Blake’s link
 };
 
 function callShowTab(tab) {
@@ -33,6 +33,11 @@ export default function App() {
   const [clientId] = useState(() => getClientFromURL());
   const clientName = useMemo(() => prettyName(clientId), [clientId]);
 
+  // 🔥 IMPORTANT: expose active client ASAP (before any legacy code reads storage)
+  // Our appCore patches localStorage based on window.__trainingActiveClientId.
+  // Setting this here prevents Blake ever falling back to Alana’s legacy keys.
+  window.__trainingActiveClientId = clientId;
+
   // 🔐 PIN gate (lightweight privacy, not full auth)
   const requiredPin = CLIENT_PINS[clientId] ?? "";
   const pinOkKey = `pin_ok:${clientId}`;
@@ -46,6 +51,9 @@ export default function App() {
 
   useEffect(() => {
     if (!unlocked) return;
+
+    // Set again right before boot (in case React batching delayed the top-level assignment)
+    window.__trainingActiveClientId = clientId;
 
     // Boot the legacy app into #app
     bootApp({ clientId });
