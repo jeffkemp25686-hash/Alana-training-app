@@ -11,10 +11,19 @@ export default function App() {
   const [active, setActive] = useState("today");
   const [label, setLabel] = useState("");
   const [phase, setPhase] = useState("");
+  const [clientId, setClientId] = useState(() => {
+    try {
+      return (window.localStorage.getItem("training_activeClientId") || "alana").toLowerCase();
+    } catch {
+      return "alana";
+    }
+  });
+
+  const clientName = clientId === "blake" ? "Blake" : "Alana";
 
   useEffect(() => {
     // Boot the legacy app into #app
-    bootApp();
+    bootApp({ clientId });
     callShowTab("today");
 
     function refresh() {
@@ -24,8 +33,19 @@ export default function App() {
 
     refresh();
     window.addEventListener("training:dayChanged", refresh);
-    return () => window.removeEventListener("training:dayChanged", refresh);
+    window.addEventListener("training:clientChanged", refresh);
+    return () => {
+      window.removeEventListener("training:dayChanged", refresh);
+      window.removeEventListener("training:clientChanged", refresh);
+    };
   }, []);
+
+  useEffect(() => {
+    // Switching clients should re-scope storage and re-render current tab
+    try {
+      window.setActiveClient?.(clientId);
+    } catch {}
+  }, [clientId]);
 
   function go(tab) {
     setActive(tab);
@@ -35,7 +55,25 @@ export default function App() {
   return (
     <div className="shell">
       <header className="topbar">
-        <span>Alana’s Training</span>
+        <span style={{ display: "flex", alignItems: "center", gap: 10 }}>
+          <span>{clientName}’s Training</span>
+          <select
+            value={clientId}
+            onChange={(e) => setClientId(e.target.value)}
+            style={{
+              padding: "6px 10px",
+              borderRadius: 10,
+              border: "1px solid rgba(255,255,255,0.15)",
+              background: "rgba(0,0,0,0.25)",
+              color: "inherit",
+              fontWeight: 700,
+            }}
+            aria-label="Select athlete"
+          >
+            <option value="alana">Alana</option>
+            <option value="blake">Blake</option>
+          </select>
+        </span>
         <span style={{ marginLeft: 10, fontWeight: 700, opacity: 0.9 }}>
           {label}
           {phase ? ` • ${phase}` : ""}

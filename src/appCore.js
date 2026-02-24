@@ -198,6 +198,9 @@ const program = [
 // NAVIGATION
 // ==========================
 function showTab(tab) {
+  // Remember last visible tab (used when switching clients)
+  window.__trainingLastTab = tab;
+
   if (tab === "today") renderToday();
   if (tab === "run") renderRun();
   if (tab === "nutrition") renderNutrition();
@@ -1515,11 +1518,125 @@ function updatePendingSyncUI() {
 }
 
 // ==========================
+// MULTI-CLIENT (FOUNDATION)
+// - Namespaces ALL localStorage keys per client
+// - Migration-safe for legacy (Alana) keys
+// ==========================
+
+const ACTIVE_CLIENT_ID_KEY = "training_activeClientId";
+
+function normalizeClientId(id) {
+  const s = String(id || "").trim().toLowerCase();
+  return s || "alana";
+}
+
+function clientPrefix(clientId) {
+  return `client:${clientId}:`;
+}
+
+function installNamespacedLocalStorage(clientId) {
+  const cid = normalizeClientId(clientId);
+
+  // Install once; switching client only changes window.__trainingActiveClientId
+  if (!window.__trainingLocalStoragePatched) {
+    window.__trainingLocalStoragePatched = true;
+
+    const proto = typeof Storage !== "undefined" ? Storage.prototype : null;
+    if (!proto) return;
+
+    const orig = {
+      getItem: proto.getItem,
+      setItem: proto.setItem,
+      removeItem: proto.removeItem,
+      key: proto.key,
+      clear: proto.clear,
+    };
+    window.__trainingLocalStorageOrig = orig;
+
+    function prefixedKey(k) {
+      const active = normalizeClientId(window.__trainingActiveClientId);
+      return clientPrefix(active) + String(k);
+    }
+
+    function isLegacyClient() {
+      return normalizeClientId(window.__trainingActiveClientId) === "alana";
+    }
+
+    // Read prefixed; for legacy client (Alana) fallback to unprefixed legacy keys.
+    proto.getItem = function (k) {
+      const key = String(k);
+      try {
+        const v = orig.getItem.call(this, prefixedKey(key));
+        if (v !== null) return v;
+        if (isLegacyClient()) return orig.getItem.call(this, key);
+        return null;
+      } catch {
+        return orig.getItem.call(this, key);
+      }
+    };
+
+    // Write prefixed; for legacy client (Alana) also write legacy key (migration-safe).
+    proto.setItem = function (k, v) {
+      const key = String(k);
+      const val = String(v);
+      if (isLegacyClient()) orig.setItem.call(this, key, val);
+      return orig.setItem.call(this, prefixedKey(key), val);
+    };
+
+    proto.removeItem = function (k) {
+      const key = String(k);
+      if (isLegacyClient()) orig.removeItem.call(this, key);
+      return orig.removeItem.call(this, prefixedKey(key));
+    };
+
+    // Safer clear(): only clears THIS client's keys (does not wipe whole origin).
+    proto.clear = function () {
+      const active = normalizeClientId(window.__trainingActiveClientId);
+      const prefix = clientPrefix(active);
+      const toDelete = [];
+      for (let i = 0; i < this.length; i++) {
+        const k = orig.key.call(this, i);
+        if (k && String(k).startsWith(prefix)) toDelete.push(k);
+      }
+      toDelete.forEach((k) => orig.removeItem.call(this, k));
+      // Intentionally do NOT clear legacy keys automatically.
+    };
+  }
+
+  window.__trainingActiveClientId = cid;
+  // Persist active client using original (unpatched) storage if possible.
+  try {
+    const orig = window.__trainingLocalStorageOrig;
+    if (orig?.setItem) orig.setItem.call(window.localStorage, ACTIVE_CLIENT_ID_KEY, cid);
+    else window.localStorage.setItem(ACTIVE_CLIENT_ID_KEY, cid);
+  } catch {}
+}
+
+export function setActiveClient(clientId) {
+  installNamespacedLocalStorage(clientId);
+  window.dispatchEvent(
+    new CustomEvent("training:clientChanged", {
+      detail: { clientId: normalizeClientId(clientId) },
+    })
+  );
+  try {
+    if (window.__trainingLastTab && window.showTab) window.showTab(window.__trainingLastTab);
+  } catch {}
+}
+
+// expose for UI
+window.setActiveClient = setActiveClient;
+
+// ==========================
 // BOOT
 // ==========================
-export function bootApp() {
+export function bootApp(opts = {}) {
   if (window.__alanaBooted) return;
   window.__alanaBooted = true;
+
+  // Install namespaced storage (defaults to Alana, migration-safe)
+  installNamespacedLocalStorage(opts.clientId);
+
   app =
     document.getElementById("app") ||
     document.getElementById("root") ||
