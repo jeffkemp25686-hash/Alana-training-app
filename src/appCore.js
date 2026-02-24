@@ -274,7 +274,10 @@ function getPhaseLabel(absOverride) {
 
 window.getWeekDayLabel = () => getWeekDayLabel(getViewAbsDay());
 window.getPhaseLabel = () => getPhaseLabel(getViewAbsDay());
-
+window.getViewAbsDay = getViewAbsDay;
+window.sessionSuffixForAbs = sessionSuffixForAbs;
+window.getAbsDay = getAbsDay;
+window.getProgramStartDate = getProgramStartDate;
 function applyPhaseToExercise(ex, phase) {
   const nm = String(ex?.name || "");
   if (nm.toUpperCase().startsWith("RUN_")) return ex;
@@ -841,7 +844,7 @@ rows.forEach(r => {
   const weight = r[7];
   const reps = r[8];
 
-  const exIndex = day.exercises.findIndex(ex => ex.name === exName);
+  const exIndex = day.exercises.findIndex(ex => String(ex.name) === String(exName));
   if (exIndex < 0) return;
 
   const wKey = `d${dayIndex}-e${exIndex}-s${setNum}-w-${date}`;
