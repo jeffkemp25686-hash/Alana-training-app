@@ -825,27 +825,39 @@ window.pullSetsFromCoachForViewedDay = async function pullSetsFromCoachForViewed
   const res = await fetch(`${SHEETS_URL}?${qs.toString()}`);
   const data = await res.json();
 
-  const rows = Array.isArray(data?.setRows) ? data.setRows : [];
-  let applied = 0;
+  const rows = Array.isArray(data.setRows) ? data.setRows : [];
 
-  rows.forEach((r) => {
-    const exName = String(r[4] || "");
-    const setNum = Number(r[5] || 0);
-    const w = String(r[7] ?? "").trim();
-    const reps = String(r[8] ?? "").trim();
-    if (!exName || !setNum) return;
+if (!rows.length) {
+  if (el) el.textContent = "⚠️ No coach data for this day.";
+  return;
+}
 
-    const exIndex = (day.exercises || []).findIndex((ex) => String(ex.name || "") === exName);
-    if (exIndex < 0) return;
+// IMPORTANT: use VIEWED day, not current day
+const viewAbs = getViewAbsDay();
+const dayIndex = viewAbs % program.length;
+const day = program[dayIndex];
+const date = sessionSuffixForAbs(viewAbs);
 
-    const wKey = `d${dayIndex}-e${exIndex}-s${setNum}-w-${ss}`;
-    const rKey = `d${dayIndex}-e${exIndex}-s${setNum}-r-${ss}`;
+// map rows → localStorage keys used by renderToday()
+rows.forEach(r => {
+  const exName = r[4];
+  const setNum = Number(r[5]);
+  const weight = r[7];
+  const reps = r[8];
 
-    if (w) localStorage.setItem(wKey, w);
-    if (reps) localStorage.setItem(rKey, reps);
-    applied++;
-  });
+  const exIndex = day.exercises.findIndex(ex => ex.name === exName);
+  if (exIndex < 0) return;
 
+  const wKey = `d${dayIndex}-e${exIndex}-s${setNum}-w-${date}`;
+  const rKey = `d${dayIndex}-e${exIndex}-s${setNum}-r-${date}`;
+
+  if (weight !== "") localStorage.setItem(wKey, weight);
+  if (reps !== "") localStorage.setItem(rKey, reps);
+});
+
+renderToday();
+
+if (el) el.textContent = "✅ Pulled from coach";
   renderToday();
   if (el) el.textContent = applied ? `✅ Pulled ${applied} entries from coach.` : "ℹ️ No sets found for that day.";
 };
