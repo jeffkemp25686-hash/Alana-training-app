@@ -17,7 +17,16 @@ import {
 } from "./lib/sync.js";
 
 let app;
-
+// ==========================
+// CLIENT HELPERS
+// ==========================
+export function normalizeClientId(id) {
+  if (!id) return "alana";
+  return String(id)
+    .toLowerCase()
+    .trim()
+    .replace(/\s+/g, "-");
+}
 // ==========================
 // TOP-LEVEL UI HELPERS (MUST BE OUTSIDE bootApp)
 // ==========================
