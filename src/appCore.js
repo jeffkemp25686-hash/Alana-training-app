@@ -1582,9 +1582,64 @@ function updatePendingSyncUI() {
 // ==========================
 // BOOT
 // ==========================
-export function bootApp() {
+export function bootApp(opts = {}) {
   if (window.__alanaBooted) return;
   window.__alanaBooted = true;
+  // --------------------------
+  // ACTIVE CLIENT (LOCKED BY APP SHELL)
+  // --------------------------
+  const activeClientId = normalizeClientId(opts.clientId || "alana");
+  window.__trainingActiveClientId = activeClientId;
+
+  // --------------------------
+  // NAMESPACE localStorage per client (migration-safe for Alana)
+  // This makes ALL existing getItem/setItem calls client-specific
+  // without rewriting the whole codebase.
+  // --------------------------
+  if (!window.__trainingStoragePatched) {
+    window.__trainingStoragePatched = true;
+
+    const rawGet = localStorage.getItem.bind(localStorage);
+    const rawSet = localStorage.setItem.bind(localStorage);
+    const rawRemove = localStorage.removeItem.bind(localStorage);
+
+    localStorage.getItem = (key) => {
+      if (typeof key !== "string") return rawGet(key);
+      if (key.includes(":")) return rawGet(key);
+
+      const cid = window.__trainingActiveClientId || "alana";
+      const namespacedKey = `${cid}:${key}`;
+      let v = rawGet(namespacedKey);
+
+      // Migration: Alana can still read legacy keys if namespaced missing
+      if (v == null && cid === "alana") v = rawGet(key);
+      return v;
+    };
+
+    localStorage.setItem = (key, value) => {
+      if (typeof key !== "string") return rawSet(key, value);
+      if (key.includes(":")) return rawSet(key, value);
+
+      const cid = window.__trainingActiveClientId || "alana";
+      const namespacedKey = `${cid}:${key}`;
+      rawSet(namespacedKey, value);
+
+      // Migration: keep Alana writing legacy keys for safety
+      if (cid === "alana") rawSet(key, value);
+    };
+
+    localStorage.removeItem = (key) => {
+      if (typeof key !== "string") return rawRemove(key);
+      if (key.includes(":")) return rawRemove(key);
+
+      const cid = window.__trainingActiveClientId || "alana";
+      const namespacedKey = `${cid}:${key}`;
+      rawRemove(namespacedKey);
+
+      if (cid === "alana") rawRemove(key);
+    };
+  }
+
   app =
     document.getElementById("app") ||
     document.getElementById("root") ||

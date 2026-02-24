@@ -1,4 +1,4 @@
-import { useEffect, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import { bootApp } from "./appCore";
 
 function getClientFromURL() {
@@ -8,8 +8,20 @@ function getClientFromURL() {
   return String(client).toLowerCase().trim().replace(/\s+/g, "-");
 }
 
+// ✅ Set a PIN per client (change these)
+// - Use "" (empty) to disable PIN for that client
+const CLIENT_PINS = {
+  alana: "1357",        // e.g. "1234" to require a PIN for Alana
+  blake: "2468",    // change this before sharing Blake's link
+};
+
 function callShowTab(tab) {
   if (window.showTab) window.showTab(tab);
+}
+
+function prettyName(clientId) {
+  if (!clientId) return "Athlete";
+  return clientId.charAt(0).toUpperCase() + clientId.slice(1);
 }
 
 export default function App() {
@@ -17,11 +29,24 @@ export default function App() {
   const [label, setLabel] = useState("");
   const [phase, setPhase] = useState("");
 
-  // 🔒 Client is locked by URL: ?client=alana / ?client=blake
+  // 🔒 Client is locked by URL (?client=...)
   const [clientId] = useState(() => getClientFromURL());
-  const clientName = clientId === "blake" ? "Blake" : "Alana";
+  const clientName = useMemo(() => prettyName(clientId), [clientId]);
+
+  // 🔐 PIN gate (lightweight privacy, not full auth)
+  const requiredPin = CLIENT_PINS[clientId] ?? "";
+  const pinOkKey = `pin_ok:${clientId}`;
+  const [pin, setPin] = useState("");
+  const [pinError, setPinError] = useState("");
+
+  const [unlocked, setUnlocked] = useState(() => {
+    if (!requiredPin) return true;
+    return localStorage.getItem(pinOkKey) === "1";
+  });
 
   useEffect(() => {
+    if (!unlocked) return;
+
     // Boot the legacy app into #app
     bootApp({ clientId });
     callShowTab("today");
@@ -33,14 +58,94 @@ export default function App() {
 
     refresh();
     window.addEventListener("training:dayChanged", refresh);
-    return () => {
-      window.removeEventListener("training:dayChanged", refresh);
-    };
-  }, []);
+    return () => window.removeEventListener("training:dayChanged", refresh);
+  }, [unlocked, clientId]);
 
   function go(tab) {
     setActive(tab);
     callShowTab(tab);
+  }
+
+  function submitPin(e) {
+    e.preventDefault();
+    if (!requiredPin) {
+      setUnlocked(true);
+      return;
+    }
+    if (pin.trim() === requiredPin) {
+      localStorage.setItem(pinOkKey, "1");
+      setUnlocked(true);
+      setPinError("");
+      setPin("");
+    } else {
+      setPinError("Incorrect code.");
+    }
+  }
+
+  if (!unlocked) {
+    return (
+      <div className="shell">
+        <header className="topbar">
+          <span>{clientName}’s Training</span>
+        </header>
+
+        <main className="content" style={{ padding: 18 }}>
+          <div
+            style={{
+              maxWidth: 420,
+              margin: "20px auto",
+              background: "rgba(255,255,255,0.06)",
+              border: "1px solid rgba(255,255,255,0.08)",
+              borderRadius: 16,
+              padding: 18,
+            }}
+          >
+            <div style={{ fontSize: 18, fontWeight: 800, marginBottom: 6 }}>
+              Enter access code
+            </div>
+            <div style={{ opacity: 0.85, marginBottom: 14 }}>
+              This program is private.
+            </div>
+
+            <form onSubmit={submitPin} style={{ display: "grid", gap: 10 }}>
+              <input
+                value={pin}
+                onChange={(e) => setPin(e.target.value)}
+                inputMode="numeric"
+                autoComplete="one-time-code"
+                placeholder="Code"
+                style={{
+                  padding: 12,
+                  borderRadius: 12,
+                  border: "1px solid rgba(255,255,255,0.18)",
+                  background: "rgba(0,0,0,0.25)",
+                  color: "white",
+                  fontSize: 16,
+                }}
+              />
+              {pinError ? (
+                <div style={{ color: "#ff6b6b", fontWeight: 700 }}>{pinError}</div>
+              ) : null}
+              <button
+                type="submit"
+                style={{
+                  padding: 12,
+                  borderRadius: 12,
+                  border: "none",
+                  background: "rgba(0, 180, 255, 0.9)",
+                  color: "black",
+                  fontWeight: 900,
+                  fontSize: 16,
+                  cursor: "pointer",
+                }}
+              >
+                Unlock
+              </button>
+            </form>
+          </div>
+        </main>
+      </div>
+    );
   }
 
   return (
