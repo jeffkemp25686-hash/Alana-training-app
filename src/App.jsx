@@ -1,5 +1,12 @@
 import { useEffect, useState } from "react";
-import { bootApp, getClientFromURL } from "./appCore";
+import { bootApp } from "./appCore";
+
+function getClientFromURL() {
+  const params = new URLSearchParams(window.location.search);
+  const client = params.get("client");
+  if (!client) return "alana";
+  return String(client).toLowerCase().trim().replace(/\s+/g, "-");
+}
 
 function callShowTab(tab) {
   if (window.showTab) window.showTab(tab);
