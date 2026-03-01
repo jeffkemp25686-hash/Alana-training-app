@@ -1,4 +1,5 @@
 // src/appCore.js
+import { initAutoSync } from "./autoSync.js";
 import { getLogArr, upsertRowIntoHistory } from "./lib/storage.js";
 import { todayDateStr, timeToMinutes, calculatePace } from "./lib/date.js";
 import {
@@ -1958,6 +1959,7 @@ export function bootApp(opts = {}) {
 
   initSheetsAutoSync();
   flushSheetsQueue({ max: 20 }).catch(() => {});
+  initAutoSync();
   // Ensure view day is initialised
   try { getViewAbsDay(); } catch (e) {}
   updateProgressBadge();
