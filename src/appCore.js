@@ -1154,70 +1154,98 @@ if (w || r) {
 }
 window.syncToCoach = syncToCoach;
 window.pullSetsFromCoachForViewedDay = async function pullSetsFromCoachForViewedDay() {
-  const athlete = "Alana"; // hardcoded for now
-  const viewAbs = getViewAbsDay();
-  const dayIndex = viewAbs % getActiveProgram().length;
-  const day = getActiveProgram()[dayIndex];
-  const ss = sessionSuffixForAbs(viewAbs); // YYYY-MM-DD
-  const date = ss;
+  try {
+    const athlete = "Alana"; // hardcoded for now
+    const viewAbs = getViewAbsDay();
+    const dayIndex = viewAbs % getActiveProgram().length;
+    const day = getActiveProgram()[dayIndex];
+    const ss = sessionSuffixForAbs(viewAbs); // YYYY-MM-DD
+    const date = ss;
 
-  const el = document.getElementById("syncStatus");
-  if (el) el.textContent = "⬇️ Pulling from coach…";
+    const el = document.getElementById("syncStatus");
+    if (el) el.textContent = "⬇️ Pulling from coach…";
 
-  const qs = new URLSearchParams({
-    action: "getSets",
-    athlete,
-    date,
-    abs: String(viewAbs),
-  });
+    const qs = new URLSearchParams({
+      action: "getSets",
+      athlete,
+      date,
+      abs: String(viewAbs),
+    });
 
-  const res = await fetch(`${SHEETS_URL}?${qs.toString()}`);
-  const data = await res.json();
-console.log("PULL params", {
-  athlete,
-  viewAbs,
-  date,
-  dayIndex,
-  dayName: day?.name
-});
+    const res = await fetch(`${SHEETS_URL}?${qs.toString()}`);
+    const data = await res.json();
 
-console.log(
-  "PULL rows count",
-  Array.isArray(data.setRows) ? data.setRows.length : "no setRows",
-  data
-);
-  const rows = Array.isArray(data.setRows) ? data.setRows : [];
+    console.log("PULL params", {
+      athlete,
+      viewAbs,
+      date,
+      dayIndex,
+      dayName: day?.name,
+    });
 
-if (!rows.length) {
-  if (el) el.textContent = "⚠️ No coach data for this day.";
-  return;
-}
+    console.log(
+      "PULL rows count",
+      Array.isArray(data?.setRows) ? data.setRows.length : "no setRows",
+      data
+    );
 
-// IMPORTANT: use VIEWED day, not current da
+    const rows = Array.isArray(data?.setRows) ? data.setRows : [];
 
-// map rows → localStorage keys used by renderToday()
-rows.forEach(r => {
-  console.log("Row exName:", r[4], "set:", r[5], "w:", r[7], "r:", r[8]);
-  const exName = r[4];
-  const setNum = Number(r[5]);
-  const weight = r[7];
-  const reps = r[8];
+    if (!rows.length) {
+      if (el) el.textContent = "⚠️ No coach data for this day.";
+      return;
+    }
 
-  const exIndex = day.exercises.findIndex(ex => String(ex.name) === String(exName));
-  if (exIndex < 0) return;
-console.log("Match exIndex", exIndex, "for", exName, "in day", day.name);
-  const wKey = `d${dayIndex}-e${exIndex}-s${setNum}-w-${date}`;
-  const rKey = `d${dayIndex}-e${exIndex}-s${setNum}-r-${date}`;
+    // map rows → localStorage keys used by renderToday()
+    let applied = 0;
 
-  if (weight !== "") localStorage.setItem(wKey, weight);
-  if (reps !== "") localStorage.setItem(rKey, reps);
-});
+    rows.forEach((r) => {
+      if (!r) return;
 
-renderToday();
+      console.log("Row exName:", r[4], "set:", r[5], "w:", r[7], "r:", r[8]);
+      const exName = r[4];
+      const setNum = Number(r[5]);
+      const weight = r[7];
+      const reps = r[8];
 
-if (el) el.textContent = "✅ Pulled from coach";
-  renderToday();
-  if (el) el.textContent = applied ? `✅ Pulled ${applied} entries from coach.` : "ℹ️ No sets found for that day.";
+      const exIndex = day?.exercises?.findIndex(
+        (ex) => String(ex.name) === String(exName)
+      );
+
+      if (exIndex == null || exIndex < 0) return;
+
+      console.log("Match exIndex", exIndex, "for", exName, "in day", day?.name);
+
+      const wKey = `d${dayIndex}-e${exIndex}-s${setNum}-w-${date}`;
+      const rKey = `d${dayIndex}-e${exIndex}-s${setNum}-r-${date}`;
+
+      let wrote = false;
+
+      if (weight !== "" && weight !== null && weight !== undefined) {
+        localStorage.setItem(wKey, String(weight));
+        wrote = true;
+      }
+      if (reps !== "" && reps !== null && reps !== undefined) {
+        localStorage.setItem(rKey, String(reps));
+        wrote = true;
+      }
+
+      if (wrote) applied++;
+    });
+
+    // Re-render once
+    if (typeof renderToday === "function") renderToday();
+
+    if (el) {
+      el.textContent = applied
+        ? `✅ Pulled ${applied} entries from coach.`
+        : "ℹ️ No sets found for that day.";
+    }
+  } catch (err) {
+    console.error("Pull from coach failed:", err);
+    const el = document.getElementById("syncStatus");
+    if (el) el.textContent = "⚠️ Pull failed (see console)";
+  }
 };
 // ==========================
 // FINISH WORKOUT (AUTO SYNC + ADVANCE)
