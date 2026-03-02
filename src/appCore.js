@@ -1078,7 +1078,9 @@ function renderToday() {
         <button onclick="startSessionTimer()" style="padding:10px 12px;cursor:pointer;">Start Session ⏱️</button>
         <button onclick="resetSessionTimer()" style="padding:10px 12px;cursor:pointer;">Reset</button>
       </div>
-      <h3>${day.name}</h3>
+     <h3 style="${window.__trainingReadOnly ? 'opacity:.7;' : ''}">
+  ${day.name}${window.__trainingReadOnly ? ' 🔒' : ''}
+</h3>
   `;
 
   if (needsRun) {
