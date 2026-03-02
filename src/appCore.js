@@ -1,6 +1,8 @@
 // src/appCore.js
 import { getLogArr, upsertRowIntoHistory } from "./lib/storage.js";
 import { todayDateStr, timeToMinutes, calculatePace } from "./lib/date.js";
+import { saveHyroxScore, getHyroxReadyPct } from "./lib/hyroxEngine.js";
+
 import {
   runKey,
   todayRunDate,
@@ -938,7 +940,7 @@ function renderToday() {
       <div style="color:#666;font-size:13px;margin-top:-6px;margin-bottom:10px;">
         ${getWeekDayLabel()} • Phase: <strong>${getPhaseLabel()}</strong>
       </div>
-      ${(getHyroxReadyPct() != null) ? ('<div style="background:#111;color:#fff;padding:8px 12px;border-radius:20px;display:inline-block;font-weight:800;margin:8px 0 10px 0;">HYROX READY: ' + getHyroxReadyPct() + '%</div>') : ''}
+      ${(typeof getHyroxReadyPct === "function" && getHyroxReadyPct() != null) ? ('<div style="background:#111;color:#fff;padding:8px 12px;border-radius:20px;display:inline-block;font-weight:800;margin:8px 0 10px 0;">HYROX READY: ' + getHyroxReadyPct() + '%</div>') : ''}
 
       <div id="sessionTimer" style="margin:8px 0 12px 0;font-weight:800;">Session: 0:00 / 90:00</div>
       <div style="display:flex;gap:10px;flex-wrap:wrap;margin-bottom:10px;">
