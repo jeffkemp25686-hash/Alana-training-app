@@ -520,15 +520,18 @@ function applyPhaseToExercise(ex, phase, microWeek = 1) {
 
 let __advancing = false;
 
-// Browse days (view-only). Never browse into the future.
+// Browse days (view-only). Allow browsing past and future within program range.
+
+// Browse days (view-only). Allow browsing past and future within program range.
 window.viewNextDay = function viewNextDay() {
-  const cur = getAbsDay();
   const view = getViewAbsDay();
-  const next = Math.min(view + 1, cur);
+  const maxAbs = 83; // 12 weeks * 7 days - 1
+  const next = Math.min(view + 1, maxAbs);
   setViewAbsDay(next);
   renderToday();
   window.dispatchEvent(new Event("training:dayChanged"));
 };
+
 
 window.viewPrevDay = function viewPrevDay() {
   const view = getViewAbsDay();
@@ -922,7 +925,7 @@ function renderToday() {
 
  const ss = sessionSuffixForAbs(viewAbs); // matches renderToday input suffix
 
- const isPast = !isCoachMode() && viewAbs < currentAbs;
+ const isReadOnly = !isCoachMode() && viewAbs !== currentAbs;
 
   const week = Math.floor(viewAbs / 7) + 1;
   const phase = getPhaseForWeek(week);
@@ -934,7 +937,7 @@ function renderToday() {
   let html = `
     <div class="card">
       <h2>Today</h2>
-      ${isPast ? `<div style="background:#f7f7f7;border:1px solid #ddd;border-radius:12px;padding:10px;margin:10px 0;color:#333;">📅 Viewing past day (read-only). You can re-sync to coach, but you can’t edit or finish.</div>` : ``}
+      ${isReadOnly ? `<div style="background:#f7f7f7;border:1px solid #ddd;border-radius:12px;padding:10px;margin:10px 0;color:#333;">📅 Viewing another day (read-only). You can browse past/future, but you can’t edit or finish.</div>` : ``}
       <div style="color:#666;font-size:13px;margin-top:-6px;margin-bottom:10px;">
         ${getWeekDayLabel()} • Phase: <strong>${getPhaseLabel()}</strong>
       </div>
@@ -1028,15 +1031,15 @@ const repsKey   = `d${dayIndex}-e${exIndex}-s${s}-r-${ss}`;
               style="padding:10px;width:160px;"
               placeholder="Weight"
               value="${weight}"
-              ${isPast ? "disabled" : ""}
-              oninput="${isPast ? "" : `localStorage.setItem('${weightKey}', this.value); updateOneRMFromKeys('${adj.name}', '${weightKey}', '${repsKey}');`}"
+              ${isReadOnly ? "disabled" : ""}
+              oninput="${isReadOnly ? "" : `localStorage.setItem('${weightKey}', this.value); updateOneRMFromKeys('${adj.name}', '${weightKey}', '${repsKey}');`}"
             >
             <input
               style="padding:10px;width:160px;"
               placeholder="Reps"
               value="${reps}"
-              ${isPast ? "disabled" : ""}
-              oninput="${isPast ? "" : `localStorage.setItem('${repsKey}', this.value); updateOneRMFromKeys('${adj.name}', '${weightKey}', '${repsKey}');`}"
+              ${isReadOnly ? "disabled" : ""}
+              oninput="${isReadOnly ? "" : `localStorage.setItem('${repsKey}', this.value); updateOneRMFromKeys('${adj.name}', '${weightKey}', '${repsKey}');`}"
             >
           </div>
         </div>
@@ -1058,7 +1061,7 @@ const repsKey   = `d${dayIndex}-e${exIndex}-s${s}-r-${ss}`;
       <p id="syncStatus" style="color:#666; margin-top:8px;"></p>
 
       ${
-        isPast
+        isReadOnly
           ? `
             <button onclick="pullSetsFromCoachForViewedDay()" style="padding:10px 12px;cursor:pointer;margin-top:10px;">
               Pull from Coach ⬇️ (Sets)
@@ -1071,14 +1074,14 @@ const repsKey   = `d${dayIndex}-e${exIndex}-s${s}-r-${ss}`;
         id="finishBtn"
         onclick="finishWorkout()"
         style="padding:10px 12px;cursor:pointer;margin-top:10px;"
-        ${(isPast || !runDone) ? "disabled" : ""}
+        ${(isReadOnly || !runDone) ? "disabled" : ""}
       >
         Finish Workout ✅
       </button>
 
       <p id="finishHint" style="color:${runDone ? "#2e7d32" : "#b26a00"}; margin-top:8px;">
         ${
-          isPast
+          isReadOnly
             ? "🔒 Read-only past day (can re-sync only)."
             : (runDone ? "✅ Ready to finish." : "🔒 Finish locked until today’s run is logged.")
         }
