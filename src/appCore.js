@@ -413,6 +413,16 @@ function getPhaseLabel(absOverride) {
   const week = Math.floor(abs / 7) + 1;
   const phase = getPhaseForWeek(week);
   const microWeek = getMicroWeek(week);
+  
+  // SAFE HYROX READY BADGE (precomputed — avoids template crash)
+  const ready = getHyroxReadyPct();
+  const hyroxReadyBadge =
+    ready != null
+      ? '<div style="background:#111;color:#fff;padding:8px 12px;border-radius:20px;display:inline-block;font-weight:800;margin:8px 0 10px 0;">HYROX READY: ' +
+        ready +
+        '%</div>'
+      : "";
+
 
   // Add microcycle label for Blake (4-week wave)
   if (getActiveClientId() === "blake") {
@@ -942,12 +952,7 @@ function renderToday() {
         ${getWeekDayLabel()} • Phase: <strong>${getPhaseLabel()}</strong>
       </div>
 
-${(() => {
-  const ready = getHyroxReadyPct();
-  return (ready != null)
-    ? `<div style="background:#111;color:#fff;padding:8px 12px;border-radius:20px;display:inline-block;font-weight:800;margin:8px 0 10px 0;">HYROX READY: ${ready}%</div>`
-    : "";
-})()}
+${hyroxReadyBadge}
 
       <div id="sessionTimer" style="margin:8px 0 12px 0;font-weight:800;">Session: 0:00 / 90:00</div>
       <div style="display:flex;gap:10px;flex-wrap:wrap;margin-bottom:10px;">
