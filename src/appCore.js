@@ -80,7 +80,14 @@ function updateProgressBadge() {
 // ==========================
 const SHEETS_URL =
   "https://script.google.com/macros/s/AKfycbyxnqtM-JHiCmjXcMtXNMelSdPL_QKTpL0DhEMtCo38I_Cc0DV9LBQbXiEom0rHaRxu/exec";
-const ATHLETE = "Alana";
+function getAthleteName() {
+  const cid = (typeof getActiveClientId === "function")
+    ? getActiveClientId()
+    : (window.__trainingActiveClientId || "alana");
+  const s = String(cid || "alana");
+  return s.charAt(0).toUpperCase() + s.slice(1);
+}
+
 
 const NUTRITION_TARGETS = {
   protein_g: 110,
@@ -402,7 +409,6 @@ function getPhaseLabel(absOverride) {
   const abs = Number.isFinite(absOverride) ? absOverride : getAbsDay();
   const week = Math.floor(abs / 7) + 1;
   const phase = getPhaseForWeek(week);
-
   const microWeek = getMicroWeek(week);
 
   // Add microcycle label for Blake (4-week wave)
@@ -512,181 +518,16 @@ function applyPhaseToExercise(ex, phase, microWeek = 1) {
 }
 
 
-
-// ==========================
-// DAY UNLOCK / READ-ONLY GATING
-// - You can browse future days freely (preview)
-// - Future days are READ-ONLY until unlocked
-// - Finishing a workout unlocks ONLY the next day
-// ==========================
-function unlockedMaxKey() {
-  return "unlockedMaxAbs";
-}
-
-function getUnlockedMaxAbs() {
-  const v = Number(localStorage.getItem(unlockedMaxKey()));
-  if (Number.isFinite(v)) return v;
-
-  // default: unlock up to "current" day (abs) if available, else viewed day
-  let abs = 0;
-  try {
-    abs = typeof getAbsDay === "function" ? getAbsDay() : getViewAbsDay();
-  } catch (_) {
-    abs = 0;
-  }
-  localStorage.setItem(unlockedMaxKey(), String(abs));
-  return abs;
-}
-
-function setUnlockedMaxAbs(abs) {
-  localStorage.setItem(unlockedMaxKey(), String(abs));
-}
-
-function isAbsUnlocked(abs) {
-  return abs <= getUnlockedMaxAbs();
-}
-
-function applyReadOnlyState() {
-  try {
-    const viewAbs = getViewAbsDay();
-    const readOnly = !isAbsUnlocked(viewAbs);
-    window.__trainingReadOnly = readOnly;
-
-    // Banner (simple + unobtrusive)
-    let banner = document.getElementById("readOnlyBanner");
-    if (readOnly) {
-      if (!banner) {
-        banner = document.createElement("div");
-        banner.id = "readOnlyBanner";
-        banner.style.cssText =
-          "padding:8px;margin:8px 0;background:#222;color:#fff;border-radius:8px;font-size:12px;";
-        banner.textContent =
-          "🔒 Future session preview (read-only). Finish the previous workout to unlock.";
-        const mount =
-          document.getElementById("app") ||
-          document.getElementById("root") ||
-          document.body;
-        mount.prepend(banner);
-      }
-    } else if (banner) {
-      banner.remove();
-    }
-
-    // Inputs are always non-editable in read-only
-    document
-      .querySelectorAll("input, textarea, select, [contenteditable='true']")
-      .forEach((el) => {
-        if (readOnly) {
-          if (!el.hasAttribute("data-prev-disabled")) {
-            el.setAttribute("data-prev-disabled", el.disabled ? "1" : "0");
-          }
-          el.disabled = true;
-          try {
-            el.readOnly = true;
-          } catch (_) {}
-          try {
-            el.setAttribute("contenteditable", "false");
-          } catch (_) {}
-        } else {
-          // restore only if we disabled it (was previously enabled)
-          if (el.getAttribute("data-prev-disabled") === "0") {
-            el.disabled = false;
-            try {
-              el.readOnly = false;
-            } catch (_) {}
-          }
-          el.removeAttribute("data-prev-disabled");
-        }
-      });
-
-    // Buttons: disable most, but allow navigation + tab switching in read-only.
-    // IMPORTANT: we must restore buttons when returning to an unlocked day.
-    const buttons = Array.from(document.querySelectorAll("button"));
-
-    if (readOnly) {
-      buttons.forEach((btn) => {
-        if (btn.dataset && btn.dataset.allowReadonly === "1") return;
-
-        const onClickAttr = (btn.getAttribute("onclick") || "").toLowerCase();
-        const id = (btn.id || "").toLowerCase();
-        const cls = (btn.className || "").toLowerCase();
-        const txt = (btn.textContent || "").toLowerCase();
-
-        const isNav =
-          onClickAttr.includes("viewnextday") ||
-          onClickAttr.includes("viewprevday") ||
-          onClickAttr.includes("showtab") ||
-          id.includes("next") ||
-          id.includes("prev") ||
-          cls.includes("tab") ||
-          cls.includes("nav") ||
-          txt.includes("next") ||
-          txt.includes("prev") ||
-          txt.includes("today") ||
-          txt.includes("progress") ||
-          txt.includes("run") ||
-          txt.includes("nutrition") ||
-          txt.includes("body");
-
-        // ✅ allow sync button even in read-only (for backfilling)
-const isSync =
-  txt.includes("sync") ||
-  onClickAttr.includes("synctocoach") ||
-  onClickAttr.includes("flushsheetsqueue");
-
-if (isNav || isSync) return;
-
-        // record prior state once, then disable
-        if (!btn.hasAttribute("data-ro-prev-disabled")) {
-          btn.setAttribute("data-ro-prev-disabled", btn.disabled ? "1" : "0");
-        }
-        btn.disabled = true;
-        btn.setAttribute("data-ro-disabled", "1");
-      });
-    } else {
-      // restore only the buttons we disabled for read-only
-      buttons.forEach((btn) => {
-        if (btn.getAttribute("data-ro-disabled") !== "1") return;
-
-        const prev = btn.getAttribute("data-ro-prev-disabled");
-        if (prev === "0") btn.disabled = false;
-
-        btn.removeAttribute("data-ro-disabled");
-        btn.removeAttribute("data-ro-prev-disabled");
-      });
-    }
-  } catch (_) {}
-}
-
-function initDayGating() {
-  if (window.__dayGatingInstalled) return;
-  window.__dayGatingInstalled = true;
-
-  // Re-apply after renders/DOM updates
-  const observer = new MutationObserver(() => applyReadOnlyState());
-  observer.observe(document.body, { childList: true, subtree: true });
-
-  // When coming back online / back to tab, re-apply (helps after tab reloads)
-  window.addEventListener("online", () => applyReadOnlyState());
-  document.addEventListener("visibilitychange", () => {
-    if (!document.hidden) applyReadOnlyState();
-  });
-
-  // Initial apply
-  setTimeout(() => applyReadOnlyState(), 0);
-}
-
 let __advancing = false;
 
 // Browse days (view-only). Never browse into the future.
 window.viewNextDay = function viewNextDay() {
-  // Browse days (preview allowed). Read-only gating is handled elsewhere.
+  const cur = getAbsDay();
   const view = getViewAbsDay();
-  const next = Math.min(view + 1, 83); // program range 0..83 (12 weeks)
+  const next = Math.min(view + 1, cur);
   setViewAbsDay(next);
   renderToday();
   window.dispatchEvent(new Event("training:dayChanged"));
-  applyReadOnlyState();
 };
 
 window.viewPrevDay = function viewPrevDay() {
@@ -695,7 +536,6 @@ window.viewPrevDay = function viewPrevDay() {
   setViewAbsDay(prev);
   renderToday();
   window.dispatchEvent(new Event("training:dayChanged"));
-  applyReadOnlyState();
 };
 
 // Advance program (Finish Workout). Guard against double-advance.
@@ -706,13 +546,6 @@ window.nextDay = function nextDay() {
   try {
     const abs = getAbsDay() + 1;
     setAbsDay(abs);
-
-    // Unlock ONLY the next day (abs now points to next day)
-    try {
-      const currentMax = getUnlockedMaxAbs();
-      setUnlockedMaxAbs(Math.max(currentMax, abs));
-    } catch (_) {}
-
     setViewAbsDay(abs); // keep view in sync with current day
 
     const dayIndex = abs % getActiveProgram().length;
@@ -1093,9 +926,7 @@ function renderToday() {
 
   const week = Math.floor(viewAbs / 7) + 1;
   const phase = getPhaseForWeek(week);
-
   const microWeek = getMicroWeek(week);
-  
 
   const needsRun = todayRequiresRun(day);
   const runDone = !needsRun ? true : isRunLoggedToday();
@@ -1277,8 +1108,6 @@ const ss = sessionSuffixForAbs(viewAbs);
   const week = Math.floor(viewAbs / 7) + 1;
   const phase = getPhaseForWeek(week);
 
-  const microWeek = getMicroWeek(week);
-
   const setRows = [];
 
   day.exercises.forEach((ex, exIndex) => {
@@ -1295,8 +1124,8 @@ const ss = sessionSuffixForAbs(viewAbs);
       const w = (localStorage.getItem(wKey) || localStorage.getItem(wOld) || "").trim();
       const r = (localStorage.getItem(rKey) || localStorage.getItem(rOld) || "").trim();
 if (w || r) {
-        const rowId = `${ATHLETE}|${date}|ABS${viewAbs}|${day.name}|${adj.name}|set${s}`;
-        setRows.push([rowId, ts, ATHLETE, day.name, adj.name, s, adj.reps, w, r]);
+        const rowId = `${getAthleteName()}|${date}|ABS${viewAbs}|${day.name}|${adj.name}|set${s}`;
+        setRows.push([rowId, ts, getAthleteName(), day.name, adj.name, s, adj.reps, w, r]);
       }
     }
   });
@@ -1332,7 +1161,7 @@ if (w || r) {
 }
 window.syncToCoach = syncToCoach;
 window.pullSetsFromCoachForViewedDay = async function pullSetsFromCoachForViewedDay() {
-  const athlete = "Alana"; // hardcoded for now
+  const athlete = getAthleteName();
   const viewAbs = getViewAbsDay();
   const dayIndex = viewAbs % getActiveProgram().length;
   const day = getActiveProgram()[dayIndex];
@@ -1541,8 +1370,8 @@ async function syncRun() {
     return;
   }
 
-  const rowId = `${ATHLETE}|RUN|${ts}`;
-  const runRows = [[rowId, ts, ATHLETE, distance, time, effort, notes, pace]];
+  const rowId = `${getAthleteName()}|RUN|${ts}`;
+  const runRows = [[rowId, ts, getAthleteName(), distance, time, effort, notes, pace]];
   runRows.forEach((r) => upsertRowIntoHistory(RUNS_LOG_KEY, r));
 
   const payload = JSON.stringify({
@@ -1706,9 +1535,9 @@ async function syncNutrition() {
   const energy = (localStorage.getItem(key("energy")) || "").trim();
   const notes = (localStorage.getItem(key("notes")) || "").trim();
 
-  const rowId = `${ATHLETE}|NUTRITION|${date}`;
+  const rowId = `${getAthleteName()}|NUTRITION|${date}`;
   const nutritionRows = [
-    [rowId, date, ATHLETE, protein, water, veg, steps, stepsCount, energy, notes, ts],
+    [rowId, date, getAthleteName(), protein, water, veg, steps, stepsCount, energy, notes, ts],
   ];
   nutritionRows.forEach((r) => upsertRowIntoHistory(NUTRI_LOG_KEY, r));
 
@@ -1816,8 +1645,8 @@ async function syncBody() {
 
   if (!weight && !waist && !hips && !notes) return;
 
-  const rowId = `${ATHLETE}|BODY|${date}`;
-  const bodyRows = [[rowId, date, ATHLETE, weight, waist, hips, notes, ts]];
+  const rowId = `${getAthleteName()}|BODY|${date}`;
+  const bodyRows = [[rowId, date, getAthleteName(), weight, waist, hips, notes, ts]];
   bodyRows.forEach((r) => upsertRowIntoHistory(BODY_LOG_KEY, r));
 
   const payload = JSON.stringify({
@@ -2151,8 +1980,6 @@ export function bootApp(opts = {}) {
 
   // Initial render
   showTab("today");
-
-  initDayGating();
 
   // Kick the React header once on initial load
   setTimeout(() => {
