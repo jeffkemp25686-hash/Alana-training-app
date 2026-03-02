@@ -404,7 +404,6 @@ function getPhaseLabel(absOverride) {
   const phase = getPhaseForWeek(week);
 
   const microWeek = getMicroWeek(week);
-  const microWeek = getMicroWeek(week);
 
   // Add microcycle label for Blake (4-week wave)
   if (getActiveClientId() === "blake") {
