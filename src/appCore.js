@@ -402,6 +402,8 @@ function getPhaseLabel(absOverride) {
   const abs = Number.isFinite(absOverride) ? absOverride : getAbsDay();
   const week = Math.floor(abs / 7) + 1;
   const phase = getPhaseForWeek(week);
+
+  const microWeek = getMicroWeek(week);
   const microWeek = getMicroWeek(week);
 
   // Add microcycle label for Blake (4-week wave)
@@ -1092,6 +1094,8 @@ function renderToday() {
 
   const week = Math.floor(viewAbs / 7) + 1;
   const phase = getPhaseForWeek(week);
+
+  const microWeek = getMicroWeek(week);
   const microWeek = getMicroWeek(week);
 
   const needsRun = todayRequiresRun(day);
@@ -1273,6 +1277,8 @@ async function syncToCoach() {
 const ss = sessionSuffixForAbs(viewAbs);
   const week = Math.floor(viewAbs / 7) + 1;
   const phase = getPhaseForWeek(week);
+
+  const microWeek = getMicroWeek(week);
 
   const setRows = [];
 
