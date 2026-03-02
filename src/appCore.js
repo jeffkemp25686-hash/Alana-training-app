@@ -1977,9 +1977,96 @@ export function bootApp(opts = {}) {
   // Initial render
   showTab("today");
 
+  initDayGating();
+
   // Kick the React header once on initial load
   setTimeout(() => {
     window.dispatchEvent(new Event("training:dayChanged"));
   }, 0);
 }
 
+
+
+// ==========================
+// DAY UNLOCK / READ-ONLY GATING
+// ==========================
+function unlockedMaxKey() {
+  return "unlockedMaxAbs";
+}
+
+function getUnlockedMaxAbs() {
+  const v = Number(localStorage.getItem(unlockedMaxKey()));
+  if (Number.isFinite(v)) return v;
+
+  const abs = getViewAbsDay();
+  localStorage.setItem(unlockedMaxKey(), String(abs));
+  return abs;
+}
+
+function setUnlockedMaxAbs(abs) {
+  localStorage.setItem(unlockedMaxKey(), String(abs));
+}
+
+function isAbsUnlocked(abs) {
+  return abs <= getUnlockedMaxAbs();
+}
+
+function applyReadOnlyState() {
+  try {
+    const viewAbs = getViewAbsDay();
+    const readOnly = !isAbsUnlocked(viewAbs);
+
+    // disable inputs
+    document.querySelectorAll("input, textarea, select, button[data-write]")
+      .forEach(el => {
+        if (readOnly) {
+          el.setAttribute("data-prev-disabled", el.disabled ? "1" : "0");
+          el.disabled = true;
+          el.readOnly = true;
+        } else {
+          if (el.getAttribute("data-prev-disabled") === "0") {
+            el.disabled = false;
+            el.readOnly = false;
+          }
+        }
+      });
+
+    // optional banner
+    let banner = document.getElementById("readOnlyBanner");
+    if (readOnly) {
+      if (!banner) {
+        banner = document.createElement("div");
+        banner.id = "readOnlyBanner";
+        banner.style.cssText =
+          "padding:8px;margin:8px 0;background:#222;color:#fff;border-radius:6px;font-size:12px;";
+        banner.textContent =
+          "🔒 Future session preview (read-only). Finish the previous workout to unlock.";
+        const app = document.getElementById("app") || document.body;
+        app.prepend(banner);
+      }
+    } else if (banner) {
+      banner.remove();
+    }
+  } catch {}
+}
+
+function initDayGating() {
+  if (window.__dayGatingInstalled) return;
+  window.__dayGatingInstalled = true;
+
+  // reapply after renders
+  const observer = new MutationObserver(() => applyReadOnlyState());
+  observer.observe(document.body, { childList: true, subtree: true });
+
+  // unlock next day when workout finished event fires
+  window.addEventListener("training:workoutFinished", () => {
+    try {
+      const abs = getViewAbsDay();
+      const currentMax = getUnlockedMaxAbs();
+      setUnlockedMaxAbs(Math.max(currentMax, abs + 1));
+    } catch {}
+  });
+
+  // initial apply
+  setTimeout(applyReadOnlyState, 500);
+}
