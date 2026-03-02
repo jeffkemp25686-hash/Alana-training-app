@@ -3,8 +3,6 @@ import { getLogArr, upsertRowIntoHistory } from "./lib/storage.js";
 import { todayDateStr, timeToMinutes, calculatePace } from "./lib/date.js";
 import { saveHyroxScore, getHyroxReadyPct } from "./lib/hyroxEngine.js";
 
-
-import { isHyroxDay, renderHyroxHtml, computeHyroxScoreFromSavedInputs } from "./lib/hyroxSession.js";
 import {
   runKey,
   todayRunDate,
@@ -110,6 +108,7 @@ const SETS_LOG_KEY = "history_sets";
 const RUNS_LOG_KEY = "history_runs";
 const NUTRI_LOG_KEY = "history_nutrition";
 const BODY_LOG_KEY = "history_body";
+const HYROX_LOG_KEY = "history_hyrox";
 function isCoachMode() {
   return localStorage.getItem(STORAGE_COACH_MODE) === "1";
 }
@@ -953,7 +952,7 @@ function renderToday() {
   `;
 
 
-  if (typeof isHyroxDay === "function" && isHyroxDay(day) && typeof renderHyroxHtml === "function") {
+  if (isHyroxDay(day)) {
     html += renderHyroxHtml({ ss, week, phase });
   }
   if (needsRun) {
@@ -1116,60 +1115,22 @@ async function syncToCoach() {
   const dayIndex = viewAbs % getActiveProgram().length;
   const day = getActiveProgram()[dayIndex];
 const ss = sessionSuffixForAbs(viewAbs);
-  const week = Math.floor(viewAbs / 7) + 1;
-  const phase = getPhaseForWeek(week);
-const microWeek = getMicroWeek(week);
-  const setRows = [];
 
-  day.exercises.forEach((ex, exIndex) => {
-    const adj = applyPhaseToExercise(ex, phase, microWeek);
-    const exName = String(adj.name || "");
-    if (exName.toUpperCase().startsWith("RUN_")) return;
-
-    for (let s = 1; s <= adj.sets; s++) {
-      const wKey = `d${dayIndex}-e${exIndex}-s${s}-w-${ss}`;
-      const rKey = `d${dayIndex}-e${exIndex}-s${s}-r-${ss}`;
-      const wOld = `d${dayIndex}-e${exIndex}-s${s}-w`;
-      const rOld = `d${dayIndex}-e${exIndex}-s${s}-r`;
-
-      const w = (localStorage.getItem(wKey) || localStorage.getItem(wOld) || "").trim();
-      const r = (localStorage.getItem(rKey) || localStorage.getItem(rOld) || "").trim();
-if (w || r) {
-        const rowId = `${getAthleteName()}|${date}|ABS${viewAbs}|${day.name}|${adj.name}|set${s}`;
-        setRows.push([rowId, ts, getAthleteName(), day.name, adj.name, s, adj.reps, w, r]);
-      }
-    }
-  });
-
-  setRows.forEach((r) => upsertRowIntoHistory(SETS_LOG_KEY, r));
-
-  const payload = JSON.stringify({
-    setRows,
-    runRows: [],
-    nutritionRows: [],
-    bodyRows: [],
-  });
-
-  const el = document.getElementById("syncStatus");
-  if (el) el.textContent = "Syncing…";
-
+  // HYROX rows (only for HYROX day)
+  let hyroxRows = [];
   try {
-    await postToSheets(SHEETS_URL, payload);
-    if (el) el.textContent = "✅ Synced. Check Google Sheet → Sets tab.";
-  } catch (err) {
-    console.error(err);
-
-    enqueueSheetsJob({
-      kind: "sets",
-      url: SHEETS_URL,
-      payload,
-      createdAt: ts,
-    });
-
-    const pending = getPendingSheetsCount();
-    if (el) el.textContent = `📥 Offline/failed — saved to queue. Pending: ${pending}`;
+    if (typeof isHyroxDay === "function" && isHyroxDay(day)) {
+      const phase = getPhaseForWeek(week);
+      const row = buildHyroxRow({ ss, athlete: getAthleteName(), abs: viewAbs, week, phase });
+      hyroxRows = [row];
+      // keep a local history log too
+      upsertRowIntoHistory(HYROX_LOG_KEY, row);
+    }
+  } catch (e) {
+    console.warn("HYROX row build failed (non-blocking)", e);
+    hyroxRows = [];
   }
-}
+
 window.syncToCoach = syncToCoach;
 window.pullSetsFromCoachForViewedDay = async function pullSetsFromCoachForViewedDay() {
   const athlete = getAthleteName();
@@ -1251,7 +1212,7 @@ window.finishWorkout = async function finishWorkout() {
 
   // If HYROX day: compute + save score BEFORE advancing
   try {
-    if (typeof isHyroxDay === "function" && isHyroxDay(day)) {
+    if (isHyroxDay(day)) {
       const hyroxScore = computeHyroxScoreFromSavedInputs(ss);
       saveHyroxScore(hyroxScore);
 
@@ -1573,6 +1534,7 @@ async function syncNutrition() {
     runRows: [],
     nutritionRows,
     bodyRows: [],
+    hyroxRows: [],
   });
 
   const el = document.getElementById("nutriSyncStatus");
@@ -1681,6 +1643,7 @@ async function syncBody() {
     runRows: [],
     nutritionRows: [],
     bodyRows,
+    hyroxRows: [],
   });
 
   const el = document.getElementById("bodySyncStatus");

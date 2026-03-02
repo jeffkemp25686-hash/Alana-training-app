@@ -164,29 +164,6 @@ export function renderHyroxHtml({ ss, week, phase }) {
         </div>
       </div>
 
-      <div style="margin-top:8px;">
-        <div 
-          onclick="this.nextElementSibling.style.display =
-            this.nextElementSibling.style.display === 'block' ? 'none' : 'block';"
-          style="font-size:13px;color:#666;cursor:pointer;">
-          ⓘ What does EMOM mean?
-        </div>
-        <div style="
-          display:none;
-          margin-top:8px;
-          font-size:13px;
-          background:#f4f4f4;
-          padding:10px;
-          border-radius:8px;
-          line-height:1.4;">
-          <strong>EMOM = Every Minute On the Minute.</strong><br><br>
-          Start 10 burpees at the top of each minute.<br>
-          When finished, walk until the next minute begins.<br><br>
-          Stay smooth — don’t sprint.<br>
-          Target effort: 7/10.
-        </div>
-      </div>
-
       <div style="margin-top:12px;padding-top:12px;border-top:1px dashed #bbb;">
         <div style="font-weight:900;margin-bottom:6px;">📊 HYROX Score Inputs (quick)</div>
         <div style="color:#666;font-size:13px;margin-bottom:10px;">
@@ -253,3 +230,56 @@ export function computeHyroxScoreFromSavedInputs(ss) {
 
   return Math.round(Math.max(0, Math.min(100, score)));
 }
+
+
+// ==========================
+// SHEETS SYNC (HYROX TAB)
+// ==========================
+export function buildHyroxRow({ ss, athlete, abs, week, phase }) {
+  const ts = new Date().toISOString();
+
+  const split1 = (localStorage.getItem(hyroxKey(ss, "split1")) || "").trim();
+  const split2 = (localStorage.getItem(hyroxKey(ss, "split2")) || "").trim();
+  const split3 = (localStorage.getItem(hyroxKey(ss, "split3")) || "").trim();
+  const completion = (localStorage.getItem(hyroxKey(ss, "completion")) || "100").trim();
+  const activeMins = (localStorage.getItem(hyroxKey(ss, "activeMins")) || "50").trim();
+
+  // score (prefer shared compute fn if present)
+  let score = "";
+  try {
+    if (typeof computeHyroxScoreFromSavedInputs === "function") {
+      score = computeHyroxScoreFromSavedInputs(ss);
+    } else {
+      // fallback: lightweight compute using same ingredients
+      const splitsSec = [split1, split2, split3].map((x) => {
+        const t = String(x || "").trim();
+        if (!t) return null;
+        const parts = t.split(":").map((p) => p.trim());
+        if (parts.length !== 2) return null;
+        const m = Number(parts[0]);
+        const s = Number(parts[1]);
+        if (!Number.isFinite(m) || !Number.isFinite(s)) return null;
+        return m * 60 + s;
+      });
+
+      const clean = splitsSec.filter((x) => Number.isFinite(x));
+      let runConsistency = 70;
+      if (clean.length >= 2) {
+        const fastest = Math.min(...clean);
+        const slowest = Math.max(...clean);
+        const diff = slowest - fastest;
+        runConsistency = diff <= 10 ? 100 : diff <= 20 ? 85 : diff <= 30 ? 70 : 55;
+      }
+
+      const wc = Math.max(0, Math.min(100, Number(completion) || 0));
+      const density = Math.max(0, Math.min(100, Math.round((Math.min(90, Math.max(0, Number(activeMins) || 0)) / 60) * 100)));
+      score = Math.round(calculateHyroxScore({ runConsistency, workCompletion: wc, density }));
+    }
+  } catch (e) {
+    score = "";
+  }
+
+  const rowId = `${athlete}|HYROX|${ss}`;
+  return [rowId, ss, athlete, String(abs), String(week), String(phase), split1, split2, split3, completion, activeMins, String(score), ts];
+}
+
