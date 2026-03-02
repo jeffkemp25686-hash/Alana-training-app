@@ -164,6 +164,29 @@ export function renderHyroxHtml({ ss, week, phase }) {
         </div>
       </div>
 
+      <div style="margin-top:8px;">
+        <div 
+          onclick="this.nextElementSibling.style.display =
+            this.nextElementSibling.style.display === 'block' ? 'none' : 'block';"
+          style="font-size:13px;color:#666;cursor:pointer;">
+          ⓘ What does EMOM mean?
+        </div>
+        <div style="
+          display:none;
+          margin-top:8px;
+          font-size:13px;
+          background:#f4f4f4;
+          padding:10px;
+          border-radius:8px;
+          line-height:1.4;">
+          <strong>EMOM = Every Minute On the Minute.</strong><br><br>
+          Start 10 burpees at the top of each minute.<br>
+          When finished, walk until the next minute begins.<br><br>
+          Stay smooth — don’t sprint.<br>
+          Target effort: 7/10.
+        </div>
+      </div>
+
       <div style="margin-top:12px;padding-top:12px;border-top:1px dashed #bbb;">
         <div style="font-weight:900;margin-bottom:6px;">📊 HYROX Score Inputs (quick)</div>
         <div style="color:#666;font-size:13px;margin-bottom:10px;">
