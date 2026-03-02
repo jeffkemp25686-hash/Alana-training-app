@@ -16,6 +16,9 @@ import {
   flushSheetsQueue,
 } from "./lib/sync.js";
 
+
+import { saveHyroxScore, getHyroxReadyPct } from "./lib/hyroxEngine.js";
+import { isHyroxDay, renderHyroxHtml, computeHyroxScoreFromSavedInputs } from "./lib/hyroxSession.js";
 let app;
 // ==========================
 // CLIENT HELPERS
@@ -188,8 +191,8 @@ const PROGRAMS = {
     ],
   },
   {
-    name: "Active Recovery",
-    exercises: [{ name: "45–60 min walk / mobility", sets: 1, reps: 1 }],
+    name: "HYROX Engine Session",
+    exercises: [{ name: "HYROX_SESSION", sets: 1, reps: 1 }],
   },
   {
     name: "Lower Hypertrophy",
@@ -938,6 +941,14 @@ function renderToday() {
       <div style="color:#666;font-size:13px;margin-top:-6px;margin-bottom:10px;">
         ${getWeekDayLabel()} • Phase: <strong>${getPhaseLabel()}</strong>
       </div>
+
+${(() => {
+  const ready = getHyroxReadyPct();
+  return (ready != null)
+    ? `<div style="background:#111;color:#fff;padding:8px 12px;border-radius:20px;display:inline-block;font-weight:800;margin:8px 0 10px 0;">HYROX READY: ${ready}%</div>`
+    : "";
+})()}
+
       <div id="sessionTimer" style="margin:8px 0 12px 0;font-weight:800;">Session: 0:00 / 90:00</div>
       <div style="display:flex;gap:10px;flex-wrap:wrap;margin-bottom:10px;">
         <button onclick="startSessionTimer()" style="padding:10px 12px;cursor:pointer;">Start Session ⏱️</button>
@@ -967,6 +978,7 @@ function renderToday() {
     const adj = applyPhaseToExercise(ex, phase, microWeek);
     const exName = String(adj.name || "");
 
+    if (exName === "HYROX_SESSION") return;
     if (exName.toUpperCase().startsWith("RUN_")) return;
 // ---- TIMED EXERCISE BLOCK (e.g., Plank) ----
 const isTimed = !!adj.timerSec;
@@ -1232,6 +1244,24 @@ if (el) el.textContent = "✅ Pulled from coach";
 window.finishWorkout = async function finishWorkout() {
   const btn = document.getElementById("finishBtn");
   if (btn) btn.disabled = true;
+
+  const viewAbs = getViewAbsDay();
+  const dayIndex = viewAbs % getActiveProgram().length;
+  const day = getActiveProgram()[dayIndex];
+  const ss = sessionSuffixForAbs(viewAbs);
+
+  // If HYROX day: compute + save score BEFORE advancing
+  try {
+    if (isHyroxDay(day)) {
+      const hyroxScore = computeHyroxScoreFromSavedInputs(ss);
+      saveHyroxScore(hyroxScore);
+
+      const hint = document.getElementById("finishHint");
+      if (hint) hint.textContent = `✅ HYROX score saved: ${hyroxScore}/100`;
+    }
+  } catch (e) {
+    console.warn("HYROX scoring failed (non-blocking)", e);
+  }
 
   try {
     if (window.syncToCoach) {
