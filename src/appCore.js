@@ -1,5 +1,4 @@
 // src/appCore.js
-import { initAutoSync } from "./autoSync.js";
 import { getLogArr, upsertRowIntoHistory } from "./lib/storage.js";
 import { todayDateStr, timeToMinutes, calculatePace } from "./lib/date.js";
 import {
@@ -512,16 +511,150 @@ function applyPhaseToExercise(ex, phase, microWeek = 1) {
 }
 
 
+
+// ==========================
+// DAY UNLOCK / READ-ONLY GATING
+// - You can browse future days freely (preview)
+// - Future days are READ-ONLY until unlocked
+// - Finishing a workout unlocks ONLY the next day
+// ==========================
+function unlockedMaxKey() {
+  return "unlockedMaxAbs";
+}
+
+function getUnlockedMaxAbs() {
+  const v = Number(localStorage.getItem(unlockedMaxKey()));
+  if (Number.isFinite(v)) return v;
+
+  // default: unlock up to "current" day (abs) if available, else viewed day
+  let abs = 0;
+  try {
+    abs = typeof getAbsDay === "function" ? getAbsDay() : getViewAbsDay();
+  } catch (_) {
+    abs = 0;
+  }
+  localStorage.setItem(unlockedMaxKey(), String(abs));
+  return abs;
+}
+
+function setUnlockedMaxAbs(abs) {
+  localStorage.setItem(unlockedMaxKey(), String(abs));
+}
+
+function isAbsUnlocked(abs) {
+  return abs <= getUnlockedMaxAbs();
+}
+
+function applyReadOnlyState() {
+  try {
+    const viewAbs = getViewAbsDay();
+    const readOnly = !isAbsUnlocked(viewAbs);
+    window.__trainingReadOnly = readOnly;
+
+    // Banner (simple + unobtrusive)
+    let banner = document.getElementById("readOnlyBanner");
+    if (readOnly) {
+      if (!banner) {
+        banner = document.createElement("div");
+        banner.id = "readOnlyBanner";
+        banner.style.cssText =
+          "padding:8px;margin:8px 0;background:#222;color:#fff;border-radius:8px;font-size:12px;";
+        banner.textContent =
+          "🔒 Future session preview (read-only). Finish the previous workout to unlock.";
+        const mount =
+          document.getElementById("app") ||
+          document.getElementById("root") ||
+          document.body;
+        mount.prepend(banner);
+      }
+    } else if (banner) {
+      banner.remove();
+    }
+
+    // Inputs are always non-editable in read-only
+    document.querySelectorAll("input, textarea, select, [contenteditable='true']")
+      .forEach((el) => {
+        if (readOnly) {
+          if (!el.hasAttribute("data-prev-disabled")) {
+            el.setAttribute("data-prev-disabled", el.disabled ? "1" : "0");
+          }
+          el.disabled = true;
+          try { el.readOnly = true; } catch (_) {}
+          try { el.setAttribute("contenteditable", "false"); } catch (_) {}
+        } else {
+          // restore only if we disabled it (was previously enabled)
+          if (el.getAttribute("data-prev-disabled") === "0") {
+            el.disabled = false;
+            try { el.readOnly = false; } catch (_) {}
+          }
+          el.removeAttribute("data-prev-disabled");
+        }
+      });
+
+    // Buttons: disable most, but allow navigation + tab switching in read-only
+    document.querySelectorAll("button").forEach((btn) => {
+      if (!readOnly) return;
+
+      if (btn.dataset && btn.dataset.allowReadonly === "1") return;
+
+      const onClickAttr = (btn.getAttribute("onclick") || "").toLowerCase();
+      const id = (btn.id || "").toLowerCase();
+      const cls = (btn.className || "").toLowerCase();
+      const txt = (btn.textContent || "").toLowerCase();
+
+      const isNav =
+        onClickAttr.includes("viewnextday") ||
+        onClickAttr.includes("viewprevday") ||
+        onClickAttr.includes("showtab") ||
+        id.includes("next") ||
+        id.includes("prev") ||
+        cls.includes("tab") ||
+        cls.includes("nav") ||
+        txt.includes("next") ||
+        txt.includes("prev") ||
+        txt.includes("today") ||
+        txt.includes("progress") ||
+        txt.includes("run") ||
+        txt.includes("nutrition") ||
+        txt.includes("body");
+
+      if (isNav) return;
+
+      // otherwise disable writes in preview mode
+      btn.disabled = true;
+    });
+  } catch (_) {}
+}
+
+function initDayGating() {
+  if (window.__dayGatingInstalled) return;
+  window.__dayGatingInstalled = true;
+
+  // Re-apply after renders/DOM updates
+  const observer = new MutationObserver(() => applyReadOnlyState());
+  observer.observe(document.body, { childList: true, subtree: true });
+
+  // When coming back online / back to tab, re-apply (helps after tab reloads)
+  window.addEventListener("online", () => applyReadOnlyState());
+  document.addEventListener("visibilitychange", () => {
+    if (!document.hidden) applyReadOnlyState();
+  });
+
+  // Initial apply
+  setTimeout(() => applyReadOnlyState(), 0);
+}
+
 let __advancing = false;
 
 // Browse days (view-only). Never browse into the future.
 window.viewNextDay = function viewNextDay() {
-  const cur = getAbsDay();
+  // Browse days (preview allowed). Read-only gating is handled elsewhere.
   const view = getViewAbsDay();
-  const next = Math.min(view + 1, cur);
+  const next = Math.min(view + 1, 83); // program range 0..83 (12 weeks)
   setViewAbsDay(next);
   renderToday();
   window.dispatchEvent(new Event("training:dayChanged"));
+  applyReadOnlyState();
 };
 
 window.viewPrevDay = function viewPrevDay() {
@@ -530,6 +663,7 @@ window.viewPrevDay = function viewPrevDay() {
   setViewAbsDay(prev);
   renderToday();
   window.dispatchEvent(new Event("training:dayChanged"));
+  applyReadOnlyState();
 };
 
 // Advance program (Finish Workout). Guard against double-advance.
@@ -540,6 +674,13 @@ window.nextDay = function nextDay() {
   try {
     const abs = getAbsDay() + 1;
     setAbsDay(abs);
+
+    // Unlock ONLY the next day (abs now points to next day)
+    try {
+      const currentMax = getUnlockedMaxAbs();
+      setUnlockedMaxAbs(Math.max(currentMax, abs));
+    } catch (_) {}
+
     setViewAbsDay(abs); // keep view in sync with current day
 
     const dayIndex = abs % getActiveProgram().length;
@@ -1101,7 +1242,6 @@ async function syncToCoach() {
 const ss = sessionSuffixForAbs(viewAbs);
   const week = Math.floor(viewAbs / 7) + 1;
   const phase = getPhaseForWeek(week);
-  const microWeek = getMicroWeek(week);
 
   const setRows = [];
 
@@ -1959,7 +2099,6 @@ export function bootApp(opts = {}) {
 
   initSheetsAutoSync();
   flushSheetsQueue({ max: 20 }).catch(() => {});
-  initAutoSync();
   // Ensure view day is initialised
   try { getViewAbsDay(); } catch (e) {}
   updateProgressBadge();
@@ -1985,88 +2124,3 @@ export function bootApp(opts = {}) {
   }, 0);
 }
 
-
-
-// ==========================
-// DAY UNLOCK / READ-ONLY GATING
-// ==========================
-function unlockedMaxKey() {
-  return "unlockedMaxAbs";
-}
-
-function getUnlockedMaxAbs() {
-  const v = Number(localStorage.getItem(unlockedMaxKey()));
-  if (Number.isFinite(v)) return v;
-
-  const abs = getViewAbsDay();
-  localStorage.setItem(unlockedMaxKey(), String(abs));
-  return abs;
-}
-
-function setUnlockedMaxAbs(abs) {
-  localStorage.setItem(unlockedMaxKey(), String(abs));
-}
-
-function isAbsUnlocked(abs) {
-  return abs <= getUnlockedMaxAbs();
-}
-
-function applyReadOnlyState() {
-  try {
-    const viewAbs = getViewAbsDay();
-    const readOnly = !isAbsUnlocked(viewAbs);
-
-    // disable inputs
-    document.querySelectorAll("input, textarea, select, button[data-write]")
-      .forEach(el => {
-        if (readOnly) {
-          el.setAttribute("data-prev-disabled", el.disabled ? "1" : "0");
-          el.disabled = true;
-          el.readOnly = true;
-        } else {
-          if (el.getAttribute("data-prev-disabled") === "0") {
-            el.disabled = false;
-            el.readOnly = false;
-          }
-        }
-      });
-
-    // optional banner
-    let banner = document.getElementById("readOnlyBanner");
-    if (readOnly) {
-      if (!banner) {
-        banner = document.createElement("div");
-        banner.id = "readOnlyBanner";
-        banner.style.cssText =
-          "padding:8px;margin:8px 0;background:#222;color:#fff;border-radius:6px;font-size:12px;";
-        banner.textContent =
-          "🔒 Future session preview (read-only). Finish the previous workout to unlock.";
-        const app = document.getElementById("app") || document.body;
-        app.prepend(banner);
-      }
-    } else if (banner) {
-      banner.remove();
-    }
-  } catch {}
-}
-
-function initDayGating() {
-  if (window.__dayGatingInstalled) return;
-  window.__dayGatingInstalled = true;
-
-  // reapply after renders
-  const observer = new MutationObserver(() => applyReadOnlyState());
-  observer.observe(document.body, { childList: true, subtree: true });
-
-  // unlock next day when workout finished event fires
-  window.addEventListener("training:workoutFinished", () => {
-    try {
-      const abs = getViewAbsDay();
-      const currentMax = getUnlockedMaxAbs();
-      setUnlockedMaxAbs(Math.max(currentMax, abs + 1));
-    } catch {}
-  });
-
-  // initial apply
-  setTimeout(applyReadOnlyState, 500);
-}
