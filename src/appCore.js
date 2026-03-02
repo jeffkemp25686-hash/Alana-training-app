@@ -1095,7 +1095,7 @@ function renderToday() {
   const phase = getPhaseForWeek(week);
 
   const microWeek = getMicroWeek(week);
-  const microWeek = getMicroWeek(week);
+  
 
   const needsRun = todayRequiresRun(day);
   const runDone = !needsRun ? true : isRunLoggedToday();
