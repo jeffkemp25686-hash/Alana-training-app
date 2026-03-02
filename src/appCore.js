@@ -627,7 +627,13 @@ function applyReadOnlyState() {
           txt.includes("nutrition") ||
           txt.includes("body");
 
-        if (isNav) return;
+        // ✅ allow sync button even in read-only (for backfilling)
+const isSync =
+  txt.includes("sync") ||
+  onClickAttr.includes("synctocoach") ||
+  onClickAttr.includes("flushsheetsqueue");
+
+if (isNav || isSync) return;
 
         // record prior state once, then disable
         if (!btn.hasAttribute("data-ro-prev-disabled")) {
