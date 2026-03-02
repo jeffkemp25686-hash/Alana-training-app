@@ -1107,7 +1107,7 @@ async function syncToCoach() {
 const ss = sessionSuffixForAbs(viewAbs);
   const week = Math.floor(viewAbs / 7) + 1;
   const phase = getPhaseForWeek(week);
-
+const microWeek = getMicroWeek(week);
   const setRows = [];
 
   day.exercises.forEach((ex, exIndex) => {
