@@ -3,6 +3,8 @@ import { getLogArr, upsertRowIntoHistory } from "./lib/storage.js";
 import { todayDateStr, timeToMinutes, calculatePace } from "./lib/date.js";
 import { saveHyroxScore, getHyroxReadyPct } from "./lib/hyroxEngine.js";
 
+
+import { isHyroxDay, renderHyroxHtml, computeHyroxScoreFromSavedInputs } from "./lib/hyroxSession.js";
 import {
   runKey,
   todayRunDate,
@@ -951,7 +953,7 @@ function renderToday() {
   `;
 
 
-  if (isHyroxDay(day)) {
+  if (typeof isHyroxDay === "function" && isHyroxDay(day) && typeof renderHyroxHtml === "function") {
     html += renderHyroxHtml({ ss, week, phase });
   }
   if (needsRun) {
@@ -1249,7 +1251,7 @@ window.finishWorkout = async function finishWorkout() {
 
   // If HYROX day: compute + save score BEFORE advancing
   try {
-    if (isHyroxDay(day)) {
+    if (typeof isHyroxDay === "function" && isHyroxDay(day)) {
       const hyroxScore = computeHyroxScoreFromSavedInputs(ss);
       saveHyroxScore(hyroxScore);
 
