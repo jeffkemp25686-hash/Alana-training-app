@@ -572,57 +572,82 @@ function applyReadOnlyState() {
     }
 
     // Inputs are always non-editable in read-only
-    document.querySelectorAll("input, textarea, select, [contenteditable='true']")
+    document
+      .querySelectorAll("input, textarea, select, [contenteditable='true']")
       .forEach((el) => {
         if (readOnly) {
           if (!el.hasAttribute("data-prev-disabled")) {
             el.setAttribute("data-prev-disabled", el.disabled ? "1" : "0");
           }
           el.disabled = true;
-          try { el.readOnly = true; } catch (_) {}
-          try { el.setAttribute("contenteditable", "false"); } catch (_) {}
+          try {
+            el.readOnly = true;
+          } catch (_) {}
+          try {
+            el.setAttribute("contenteditable", "false");
+          } catch (_) {}
         } else {
           // restore only if we disabled it (was previously enabled)
           if (el.getAttribute("data-prev-disabled") === "0") {
             el.disabled = false;
-            try { el.readOnly = false; } catch (_) {}
+            try {
+              el.readOnly = false;
+            } catch (_) {}
           }
           el.removeAttribute("data-prev-disabled");
         }
       });
 
-    // Buttons: disable most, but allow navigation + tab switching in read-only
-    document.querySelectorAll("button").forEach((btn) => {
-      if (!readOnly) return;
+    // Buttons: disable most, but allow navigation + tab switching in read-only.
+    // IMPORTANT: we must restore buttons when returning to an unlocked day.
+    const buttons = Array.from(document.querySelectorAll("button"));
 
-      if (btn.dataset && btn.dataset.allowReadonly === "1") return;
+    if (readOnly) {
+      buttons.forEach((btn) => {
+        if (btn.dataset && btn.dataset.allowReadonly === "1") return;
 
-      const onClickAttr = (btn.getAttribute("onclick") || "").toLowerCase();
-      const id = (btn.id || "").toLowerCase();
-      const cls = (btn.className || "").toLowerCase();
-      const txt = (btn.textContent || "").toLowerCase();
+        const onClickAttr = (btn.getAttribute("onclick") || "").toLowerCase();
+        const id = (btn.id || "").toLowerCase();
+        const cls = (btn.className || "").toLowerCase();
+        const txt = (btn.textContent || "").toLowerCase();
 
-      const isNav =
-        onClickAttr.includes("viewnextday") ||
-        onClickAttr.includes("viewprevday") ||
-        onClickAttr.includes("showtab") ||
-        id.includes("next") ||
-        id.includes("prev") ||
-        cls.includes("tab") ||
-        cls.includes("nav") ||
-        txt.includes("next") ||
-        txt.includes("prev") ||
-        txt.includes("today") ||
-        txt.includes("progress") ||
-        txt.includes("run") ||
-        txt.includes("nutrition") ||
-        txt.includes("body");
+        const isNav =
+          onClickAttr.includes("viewnextday") ||
+          onClickAttr.includes("viewprevday") ||
+          onClickAttr.includes("showtab") ||
+          id.includes("next") ||
+          id.includes("prev") ||
+          cls.includes("tab") ||
+          cls.includes("nav") ||
+          txt.includes("next") ||
+          txt.includes("prev") ||
+          txt.includes("today") ||
+          txt.includes("progress") ||
+          txt.includes("run") ||
+          txt.includes("nutrition") ||
+          txt.includes("body");
 
-      if (isNav) return;
+        if (isNav) return;
 
-      // otherwise disable writes in preview mode
-      btn.disabled = true;
-    });
+        // record prior state once, then disable
+        if (!btn.hasAttribute("data-ro-prev-disabled")) {
+          btn.setAttribute("data-ro-prev-disabled", btn.disabled ? "1" : "0");
+        }
+        btn.disabled = true;
+        btn.setAttribute("data-ro-disabled", "1");
+      });
+    } else {
+      // restore only the buttons we disabled for read-only
+      buttons.forEach((btn) => {
+        if (btn.getAttribute("data-ro-disabled") !== "1") return;
+
+        const prev = btn.getAttribute("data-ro-prev-disabled");
+        if (prev === "0") btn.disabled = false;
+
+        btn.removeAttribute("data-ro-disabled");
+        btn.removeAttribute("data-ro-prev-disabled");
+      });
+    }
   } catch (_) {}
 }
 
@@ -1078,9 +1103,7 @@ function renderToday() {
         <button onclick="startSessionTimer()" style="padding:10px 12px;cursor:pointer;">Start Session ⏱️</button>
         <button onclick="resetSessionTimer()" style="padding:10px 12px;cursor:pointer;">Reset</button>
       </div>
-     <h3 style="${window.__trainingReadOnly ? 'opacity:.7;' : ''}">
-  ${day.name}${window.__trainingReadOnly ? ' 🔒' : ''}
-</h3>
+      <h3>${day.name}</h3>
   `;
 
   if (needsRun) {
