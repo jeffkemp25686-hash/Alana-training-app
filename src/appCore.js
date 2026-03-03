@@ -3,6 +3,7 @@ import { getLogArr, upsertRowIntoHistory } from "./lib/storage.js";
 import { todayDateStr, timeToMinutes, calculatePace } from "./lib/date.js";
 import { saveHyroxScore, getHyroxReadyPct } from "./lib/hyroxEngine.js";
 
+import { isHyroxDay, renderHyroxHtml, computeHyroxScoreFromSavedInputs, buildHyroxRow } from "./lib/hyroxSession.js";
 import {
   runKey,
   todayRunDate,
@@ -1110,27 +1111,93 @@ app.innerHTML = html;
 // ==========================
 async function syncToCoach() {
   const ts = new Date().toISOString();
-  const date = ts.slice(0, 10);
   const viewAbs = getViewAbsDay();
+  const week = Math.floor(viewAbs / 7) + 1;
+  const phase = getPhaseForWeek(week);
+
   const dayIndex = viewAbs % getActiveProgram().length;
   const day = getActiveProgram()[dayIndex];
-const ss = sessionSuffixForAbs(viewAbs);
+  const ss = sessionSuffixForAbs(viewAbs); // YYYY-MM-DD (program day date)
+  const athlete = getAthleteName();
 
-  // HYROX rows (only for HYROX day)
+  const el = document.getElementById("syncStatus");
+  if (el) el.textContent = "";
+
+  // --------------------------
+  // Build SET rows from localStorage (this viewed day only)
+  // Sheet expects: [rowId, ts, athlete, date, exName, setNum, targetReps, weight, reps]
+  // --------------------------
+  const setRows = [];
+
+  (day.exercises || []).forEach((ex, exIndex) => {
+    const exName = String(ex?.name || "");
+    if (!exName) return;
+    if (exName === "HYROX_SESSION") return;
+    if (exName.toUpperCase().startsWith("RUN_")) return;
+
+    const adj = applyPhaseToExercise(ex, phase, getMicroWeek(week));
+    const sets = Number(adj.sets) || 1;
+    const targetReps = Number(adj.reps) || "";
+
+    for (let s = 1; s <= sets; s++) {
+      const wKey = `d${dayIndex}-e${exIndex}-s${s}-w-${ss}`;
+      const rKey = `d${dayIndex}-e${exIndex}-s${s}-r-${ss}`;
+      const weight = (localStorage.getItem(wKey) || "").trim();
+      const reps = (localStorage.getItem(rKey) || "").trim();
+
+      if (!weight && !reps) continue;
+
+      const rowId = `${athlete}|${ss}|ABS${viewAbs}|${exName}|S${s}`;
+      const row = [rowId, ts, athlete, ss, exName, s, targetReps, weight, reps];
+      setRows.push(row);
+      upsertRowIntoHistory(SETS_LOG_KEY, row);
+    }
+  });
+
+  // --------------------------
+  // HYROX row (only on HYROX day)
+  // --------------------------
   let hyroxRows = [];
   try {
     if (typeof isHyroxDay === "function" && isHyroxDay(day)) {
-      const phase = getPhaseForWeek(week);
-      const row = buildHyroxRow({ ss, athlete: getAthleteName(), abs: viewAbs, week, phase });
-      hyroxRows = [row];
-      // keep a local history log too
-      upsertRowIntoHistory(HYROX_LOG_KEY, row);
+      const row = buildHyroxRow({ ss, athlete, abs: viewAbs, week, phase });
+      if (row && Array.isArray(row)) {
+        hyroxRows = [row];
+        upsertRowIntoHistory(HYROX_LOG_KEY, row);
+      }
     }
   } catch (e) {
     console.warn("HYROX row build failed (non-blocking)", e);
     hyroxRows = [];
   }
 
+  const payload = JSON.stringify({
+    setRows,
+    runRows: [],
+    nutritionRows: [],
+    bodyRows: [],
+    hyroxRows,
+  });
+
+  if (el) el.textContent = "Syncing…";
+
+  try {
+    await postToSheets(SHEETS_URL, payload);
+    if (el) el.textContent = "✅ Sets synced!";
+  } catch (err) {
+    console.error(err);
+
+    enqueueSheetsJob({
+      kind: "sets",
+      url: SHEETS_URL,
+      payload,
+      createdAt: ts,
+    });
+
+    const pending = getPendingSheetsCount();
+    if (el) el.textContent = `📥 Offline/failed — saved to queue. Pending: ${pending}`;
+  }
+}
 window.syncToCoach = syncToCoach;
 window.pullSetsFromCoachForViewedDay = async function pullSetsFromCoachForViewedDay() {
   const athlete = getAthleteName();
@@ -1193,10 +1260,7 @@ console.log("Match exIndex", exIndex, "for", exName, "in day", day.name);
 });
 
 renderToday();
-
 if (el) el.textContent = "✅ Pulled from coach";
-  renderToday();
-  if (el) el.textContent = applied ? `✅ Pulled ${applied} entries from coach.` : "ℹ️ No sets found for that day.";
 };
 // ==========================
 // FINISH WORKOUT (AUTO SYNC + ADVANCE)
@@ -1860,7 +1924,7 @@ function updatePendingSyncUI() {
 // ==========================
 // BOOT
 // ==========================
-export function bootApp(opts = {}) {
+function bootApp(opts = {}) {
   if (window.__alanaBooted) return;
   window.__alanaBooted = true;
   // --------------------------
@@ -1976,4 +2040,4 @@ export function bootApp(opts = {}) {
     window.dispatchEvent(new Event("training:dayChanged"));
   }, 0);
 }
-
+window.bootApp = bootApp;

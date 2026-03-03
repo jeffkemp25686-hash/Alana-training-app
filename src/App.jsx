@@ -1,5 +1,4 @@
 import { useEffect, useMemo, useState } from "react";
-import { bootApp } from "./appCore";
 
 function getClientFromURL() {
   const params = new URLSearchParams(window.location.search);
@@ -8,11 +7,10 @@ function getClientFromURL() {
   return String(client).toLowerCase().trim().replace(/\s+/g, "-");
 }
 
-// ✅ Set a PIN per client (change these)
-// - Use "" (empty) to disable PIN for that client
+// 🔐 Set PIN per client ("" disables PIN)
 const CLIENT_PINS = {
-  alana: "",        // e.g. "1234" to require a PIN for Alana
-  blake: "2468",    // change this before sharing Blake’s link
+  alana: "1357",
+  blake: "2468",
 };
 
 function callShowTab(tab) {
@@ -29,21 +27,17 @@ export default function App() {
   const [label, setLabel] = useState("");
   const [phase, setPhase] = useState("");
 
-  // 🔒 Client is locked by URL (?client=...)
   const [clientId] = useState(() => getClientFromURL());
   const clientName = useMemo(() => prettyName(clientId), [clientId]);
 
-  // 🔥 IMPORTANT: expose active client ASAP (before any legacy code reads storage)
-  // Our appCore patches localStorage based on window.__trainingActiveClientId.
-  // Setting this here prevents Blake ever falling back to Alana’s legacy keys.
+  // Expose client immediately
   window.__trainingActiveClientId = clientId;
 
-  // 🔐 PIN gate (lightweight privacy, not full auth)
   const requiredPin = CLIENT_PINS[clientId] ?? "";
   const pinOkKey = `pin_ok:${clientId}`;
+
   const [pin, setPin] = useState("");
   const [pinError, setPinError] = useState("");
-
   const [unlocked, setUnlocked] = useState(() => {
     if (!requiredPin) return true;
     return localStorage.getItem(pinOkKey) === "1";
@@ -52,12 +46,7 @@ export default function App() {
   useEffect(() => {
     if (!unlocked) return;
 
-    // Set again right before boot (in case React batching delayed the top-level assignment)
     window.__trainingActiveClientId = clientId;
-
-    // Boot the legacy app into #app
-    bootApp({ clientId });
-    callShowTab("today");
 
     function refresh() {
       if (window.getWeekDayLabel) setLabel(window.getWeekDayLabel());
@@ -132,7 +121,9 @@ export default function App() {
                 }}
               />
               {pinError ? (
-                <div style={{ color: "#ff6b6b", fontWeight: 700 }}>{pinError}</div>
+                <div style={{ color: "#ff6b6b", fontWeight: 700 }}>
+                  {pinError}
+                </div>
               ) : null}
               <button
                 type="submit"
@@ -159,9 +150,7 @@ export default function App() {
   return (
     <div className="shell">
       <header className="topbar">
-        <span style={{ display: "flex", alignItems: "center", gap: 10 }}>
-          <span>{clientName}’s Training</span>
-        </span>
+        <span>{clientName}’s Training</span>
         <span style={{ marginLeft: 10, fontWeight: 700, opacity: 0.9 }}>
           {label}
           {phase ? ` • ${phase}` : ""}
@@ -174,70 +163,40 @@ export default function App() {
 
       <footer className="bottomnavOuter">
         <nav className="bottomnav">
-          <button
-            className={`navbtn ${active === "today" ? "active" : ""}`}
-            onClick={() => go("today")}
-          >
-            <span className="navicon">🏋️‍♀️</span>
-            <span className="navlabel">Today</span>
-          </button>
-
-          <button
-            className={`navbtn ${active === "run" ? "active" : ""}`}
-            onClick={() => go("run")}
-          >
-            <span className="navicon">🏃</span>
-            <span className="navlabel">Run</span>
-          </button>
-
-          <button
-            className={`navbtn ${active === "nutrition" ? "active" : ""}`}
-            onClick={() => go("nutrition")}
-          >
-            <span className="navicon">🍏</span>
-            <span className="navlabel">Nutrition</span>
-          </button>
-
-          <button
-            className={`navbtn ${active === "body" ? "active" : ""}`}
-            onClick={() => go("body")}
-          >
-            <span className="navicon">🧍</span>
-            <span className="navlabel">Body</span>
-          </button>
-
-          <button
-            className={`navbtn ${active === "progress" ? "active" : ""}`}
-            onClick={() => go("progress")}
-            style={{ position: "relative" }}
-          >
-            <span className="navicon">📈</span>
-            <span className="navlabel">Progress</span>
-
-            <span
-              id="progressBadge"
-              aria-label="Pending sync"
-              style={{
-                display: "none",
-                position: "absolute",
-                top: 8,
-                right: 14,
-                width: 10,
-                height: 10,
-                borderRadius: 999,
-                background: "#ff3b30",
-              }}
-            />
-          </button>
+          {["today","run","nutrition","body","progress"].map(tab => (
+            <button
+              key={tab}
+              className={`navbtn ${active === tab ? "active" : ""}`}
+              onClick={() => go(tab)}
+              style={{ position: tab === "progress" ? "relative" : undefined }}
+            >
+              <span className="navlabel">
+                {tab.charAt(0).toUpperCase() + tab.slice(1)}
+              </span>
+              {tab === "progress" && (
+                <span
+                  id="progressBadge"
+                  style={{
+                    display: "none",
+                    position: "absolute",
+                    top: 8,
+                    right: 14,
+                    width: 10,
+                    height: 10,
+                    borderRadius: 999,
+                    background: "#ff3b30",
+                  }}
+                />
+              )}
+            </button>
+          ))}
 
           <button className="navbtn" onClick={() => window.viewPrevDay?.()}>
-            <span className="navicon">⏮️</span>
-            <span className="navlabel">Back</span>
+            Back
           </button>
 
           <button className="navbtn" onClick={() => window.viewNextDay?.()}>
-            <span className="navicon">⏭️</span>
-            <span className="navlabel">Next</span>
+            Next
           </button>
         </nav>
       </footer>
