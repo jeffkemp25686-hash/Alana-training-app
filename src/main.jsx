@@ -1,8 +1,6 @@
 import React from "react";
 import ReactDOM from "react-dom/client";
 import App from "./App.jsx";
-
-// appCore attaches window.bootApp + window.showTab
 import "./appCore.js";
 import "./styles.css";
 
@@ -13,14 +11,25 @@ function getClientFromURL() {
   return String(client).toLowerCase().trim().replace(/\s+/g, "-");
 }
 
-ReactDOM.createRoot(document.getElementById("root")).render(<App />);
+function bootWhenReady() {
+  const el = document.getElementById("app");
+  if (!el) {
+    requestAnimationFrame(bootWhenReady);
+    return;
+  }
 
-// ✅ boot AFTER React commits #app
-setTimeout(() => {
+  // allow re-boot in case a previous early boot happened
+  window.__alanaBooted = false;
+
   const clientId = getClientFromURL();
   window.bootApp?.({ clientId });
   window.showTab?.("today");
-}, 0);
+}
+
+ReactDOM.createRoot(document.getElementById("root")).render(<App />);
+
+// 👇 This guarantees #app exists before booting
+bootWhenReady();
 
 if ("serviceWorker" in navigator) {
   window.addEventListener("load", () => {
