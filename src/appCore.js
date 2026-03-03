@@ -179,21 +179,32 @@ const PROGRAMS = {
       { name: "Face Pull", sets: 3, reps: 15 },
       { name: "Rear Delt Fly", sets: 3, reps: 15 },
       { name: "Biceps Curl", sets: 3, reps: 12 },
+       // Core finisher
+    { name: "Plank", sets: 3, reps: 90, timerSec: 90 },
     ],
   },
   {
-    name: "Run + Glutes",
+  name: "Glutes + Core",
+  exercises: [
+    { name: "Hip Thrust", sets: 4, reps: 10 },
+    { name: "Step Ups", sets: 3, reps: 12 },
+    { name: "Cable Kickbacks", sets: 3, reps: 15 },
+    { name: "45° Back Extension (Glute Bias)", sets: 3, reps: 12 },
+
+    { name: "Dead Bug", sets: 3, reps: 10 },
+    { name: "Pallof Press", sets: 3, reps: 12 },
+    { name: "Side Plank", sets: 3, reps: 60, timerSec: 60 },
+  ],
+},
+  {
+    name: "Shoulders + Upper Back",
     exercises: [
-      { name: "RUN_SESSION", sets: 1, reps: 1 },
-      { name: "Hip Thrust", sets: 4, reps: 10 },
-      { name: "Cable Kickbacks", sets: 3, reps: 15 },
-      { name: "Step Ups", sets: 3, reps: 12 },
-      { name: "Plank", sets: 3, reps: 90, timerSec: 90 },
+      { name: "Machine Shoulder Press", sets: 3, reps: 10 },
+      { name: "Lateral Raise", sets: 4, reps: 15 },
+      { name: "Cable Y Raise", sets: 3, reps: 15 },
+      { name: "Assisted Pullups", sets: 3, reps: 8 },
+      { name: "Rope Rows", sets: 3, reps: 12 },
     ],
-  },
-  {
-    name: "HYROX Engine Session",
-    exercises: [{ name: "HYROX_SESSION", sets: 1, reps: 1 }],
   },
   {
     name: "Lower Hypertrophy",
@@ -205,15 +216,10 @@ const PROGRAMS = {
       { name: "Calves", sets: 4, reps: 15 },
     ],
   },
+  
   {
-    name: "Shoulders + Upper Back",
-    exercises: [
-      { name: "Machine Shoulder Press", sets: 3, reps: 10 },
-      { name: "Lateral Raise", sets: 4, reps: 15 },
-      { name: "Cable Y Raise", sets: 3, reps: 15 },
-      { name: "Assisted Pullups", sets: 3, reps: 8 },
-      { name: "Rope Rows", sets: 3, reps: 12 },
-    ],
+    name: "HYROX Engine Session",
+    exercises: [{ name: "HYROX_SESSION", sets: 1, reps: 1 }],
   },
   {
     name: "Long Easy Run",
@@ -495,30 +501,47 @@ function applyPhaseToExercise(ex, phase, microWeek = 1) {
   }
 
   // --------------------------
-  // Alana: keep original behaviour
-  // --------------------------
-  if (phase === "Base") out.reps = out.reps + 2;
+// Alana: keep original behaviour
+// --------------------------
+if (phase === "Base") out.reps = out.reps + 2;
 
-  if (phase === "Build") {
-    const low = nm.toLowerCase();
-    const isBigLift =
-      low.includes("squat") ||
-      low.includes("deadlift") ||
-      low.includes("hip thrust") ||
-      low.includes("leg press") ||
-      low.includes("shoulder press") ||
-      low.includes("lat pulldown") ||
-      low.includes("row");
+if (phase === "Build") {
+  const low = nm.toLowerCase();
+  const isBigLift =
+    low.includes("squat") ||
+    low.includes("deadlift") ||
+    low.includes("hip thrust") ||
+    low.includes("leg press") ||
+    low.includes("shoulder press") ||
+    low.includes("lat pulldown") ||
+    low.includes("row");
 
-    if (isBigLift) out.sets = Math.min(out.sets + 1, 5);
-    out.reps = Math.max(out.reps, 8);
-  }
+  if (isBigLift) out.sets = Math.min(out.sets + 1, 5);
+  out.reps = Math.max(out.reps, 8);
+}
 
-  if (phase === "Peak") {
-    out.reps = Math.max(5, Math.round(out.reps * 0.7));
-  }
+if (phase === "Peak") {
+  out.reps = Math.max(5, Math.round(out.reps * 0.7));
+}
 
-  return out;
+// ✅ ADD THIS (microcycle wave)
+const mw = Number(microWeek) || 1;
+const low2 = nm.toLowerCase();
+
+const isGluteOrCore =
+  low2.includes("hip thrust") ||
+  low2.includes("kickback") ||
+  low2.includes("step up") ||
+  low2.includes("back extension") ||
+  low2.includes("plank") ||
+  low2.includes("core");
+
+if (isGluteOrCore) {
+  if (mw === 3) out.sets = Math.min((out.sets || 3) + 1, 5); // overreach
+  if (mw === 4) out.sets = Math.max(2, (out.sets || 3) - 1); // deload
+}
+
+return out;
 }
 
 
@@ -773,6 +796,20 @@ function startCountdownTimer(btn, totalSeconds, label, restSeconds) {
   }, 1000);
 }
 window.startCountdownTimer = startCountdownTimer;
+window.startSidePlankSet = function startSidePlankSet(btn, secondsPerSide, setNum) {
+  const sec = Number(secondsPerSide) || 0;
+  if (!sec) return;
+
+  // Left side first
+  startCountdownTimer(btn, sec, `Side Plank (Left) set ${setNum}`, 0);
+
+  // After left completes, immediately run right side (no rest between sides)
+  setTimeout(() => {
+    // Right side then rest 60s AFTER the set (i.e., after both sides)
+    startCountdownTimer(btn, sec, `Side Plank (Right) set ${setNum}`, 60);
+  }, (sec + 1) * 1000); // +1 to avoid timing edge cases
+};
+
 // ==========================
 // SET SUGGESTIONS
 // ==========================
@@ -992,18 +1029,25 @@ if (isTimed) {
   `;
 
   for (let s = 1; s <= (adj.sets || 1); s++) {
-    html += `
-      <div style="margin-bottom:10px;">
-        <div style="color:#666;font-size:13px;">Set ${s}</div>
-        <button
-         onclick="startCountdownTimer(this, ${adj.timerSec}, '${adj.name} set ${s}', 60)"
-          style="padding:10px 12px;cursor:pointer;"
-        >
-          Start ${durLabel} Timer
-        </button>
-      </div>
-    `;
-  }
+  const isSidePlank = String(adj.name || "").toLowerCase().includes("side plank");
+
+  html += `
+    <div style="margin-bottom:10px;">
+      <div style="color:#666;font-size:13px;">Set ${s}${isSidePlank ? " (each side)" : ""}</div>
+
+      <button
+        onclick="${
+          isSidePlank
+            ? `startSidePlankSet(this, ${adj.timerSec}, ${s})`
+            : `startCountdownTimer(this, ${adj.timerSec}, '${adj.name} set ${s}', 60)`
+        }"
+        style="padding:10px 12px;cursor:pointer;"
+      >
+        Start ${durLabel} Timer
+      </button>
+    </div>
+  `;
+}
 
   html += `<hr>`;
   return; // IMPORTANT: prevents normal reps/weights UI from rendering
