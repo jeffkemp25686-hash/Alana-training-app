@@ -2,15 +2,25 @@ import React from "react";
 import ReactDOM from "react-dom/client";
 import App from "./App.jsx";
 
-// load appCore for side-effects (it sets window.bootApp, window.showTab, etc)
+// appCore attaches window.bootApp + window.showTab
 import "./appCore.js";
-
 import "./styles.css";
+
+function getClientFromURL() {
+  const params = new URLSearchParams(window.location.search);
+  const client = params.get("client");
+  if (!client) return "alana";
+  return String(client).toLowerCase().trim().replace(/\s+/g, "-");
+}
 
 ReactDOM.createRoot(document.getElementById("root")).render(<App />);
 
-// boot the legacy app after React mounts
-window.bootApp();
+// ✅ boot AFTER React commits #app
+setTimeout(() => {
+  const clientId = getClientFromURL();
+  window.bootApp?.({ clientId });
+  window.showTab?.("today");
+}, 0);
 
 if ("serviceWorker" in navigator) {
   window.addEventListener("load", () => {
