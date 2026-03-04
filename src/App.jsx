@@ -1,13 +1,14 @@
 import { useEffect, useMemo, useState } from "react";
 
-
 function getClientFromURL() {
   const params = new URLSearchParams(window.location.search);
   const raw = params.get("client");
-  const client = raw ? String(raw).toLowerCase().trim().replace(/\s+/g, "-") : "";
+  const client = raw
+    ? String(raw).toLowerCase().trim().replace(/\s+/g, "-")
+    : "";
 
-  const allowed = ["alana", "blake", "jeff"];
-  if (!client) return "alana";              // default landing client
+  const allowed = ["alana", "blake", "jeff", "coach"];
+  if (!client) return "alana"; // default landing client
   if (!allowed.includes(client)) return "alana"; // refuse unknown clients
   return client;
 }
@@ -17,6 +18,7 @@ const CLIENT_PINS = {
   alana: "1357",
   blake: "2468",
   jeff: "2903",
+  coach: "1986",
 };
 
 function callShowTab(tab) {
@@ -153,6 +155,94 @@ export default function App() {
     );
   }
 
+  // ✅ Coach Dashboard
+  if (unlocked && clientId === "coach") {
+    return (
+      <div className="shell">
+        <header className="topbar">
+          <span>Coach Dashboard</span>
+
+          <button
+            className="navbtn"
+            onClick={() => {
+              localStorage.removeItem("coachMode");
+              location.reload();
+            }}
+            style={{ marginLeft: 12 }}
+            title="Disable coach mode on this device"
+          >
+            Coach Mode OFF
+          </button>
+        </header>
+
+        <main className="content" style={{ padding: 18 }}>
+          <div
+            style={{
+              display: "grid",
+              gap: 12,
+              maxWidth: 520,
+              margin: "0 auto",
+            }}
+          >
+            {[{ id: "alana" }, { id: "blake" }, { id: "jeff" }].map((c) => (
+              <div
+                key={c.id}
+                style={{
+                  background: "rgba(255,255,255,0.06)",
+                  border: "1px solid rgba(255,255,255,0.08)",
+                  borderRadius: 16,
+                  padding: 14,
+                  display: "flex",
+                  alignItems: "center",
+                  justifyContent: "space-between",
+                  gap: 10,
+                }}
+              >
+                <div style={{ fontWeight: 900, fontSize: 16 }}>
+                  {prettyName(c.id)}
+                </div>
+
+                <div style={{ display: "flex", gap: 10 }}>
+                  <a
+                    className="navbtn"
+                    href={`/?client=${c.id}`}
+                    style={{ textDecoration: "none" }}
+                    title="Open as athlete (normal permissions)"
+                  >
+                    Open
+                  </a>
+
+                  <button
+                    className="navbtn"
+                    onClick={() => {
+                      localStorage.setItem("coachMode", "1");
+                      window.location.href = `/?client=${c.id}`;
+                    }}
+                    title="Open with coach permissions on this device"
+                  >
+                    Open as Coach
+                  </button>
+                </div>
+              </div>
+            ))}
+          </div>
+
+          <div
+            style={{
+              maxWidth: 520,
+              margin: "14px auto 0",
+              opacity: 0.8,
+              fontSize: 13,
+            }}
+          >
+            Coach PIN protects this dashboard. “Open as Coach” enables coach mode
+            only on this device.
+          </div>
+        </main>
+      </div>
+    );
+  }
+
   return (
     <div className="shell">
       <header className="topbar">
@@ -169,7 +259,7 @@ export default function App() {
 
       <footer className="bottomnavOuter">
         <nav className="bottomnav">
-          {["today","run","nutrition","body","progress"].map(tab => (
+          {["today", "run", "nutrition", "body", "progress"].map((tab) => (
             <button
               key={tab}
               className={`navbtn ${active === tab ? "active" : ""}`}

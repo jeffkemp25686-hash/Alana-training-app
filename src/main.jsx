@@ -9,7 +9,7 @@ function getClientFromURL() {
   const raw = params.get("client");
   const client = raw ? String(raw).toLowerCase().trim().replace(/\s+/g, "-") : "";
 
-  const allowed = ["alana", "blake", "jeff"];
+  const allowed = ["alana", "blake", "jeff", "coach"];
   if (!client) return "alana";
   if (!allowed.includes(client)) return "alana";
   return client;
@@ -25,9 +25,12 @@ function bootWhenReady() {
   // allow re-boot in case a previous early boot happened
   window.__alanaBooted = false;
 
-  const clientId = getClientFromURL();
-  window.bootApp?.({ clientId });
-  window.showTab?.("today");
+    const clientId = getClientFromURL();
+
+  if (clientId !== "coach") {
+    window.bootApp?.({ clientId });
+    window.showTab?.("today");
+  }
 }
 
 ReactDOM.createRoot(document.getElementById("root")).render(<App />);
