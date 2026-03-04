@@ -5,14 +5,26 @@ import "./appCore.js";
 import "./styles.css";
 
 function getClientFromURL() {
+  const allowed = ["alana", "blake", "jeff", "coach"];
+
+  // ✅ 1) Prefer path: /jeff, /alana, /blake, /coach
+  const seg = (window.location.pathname || "/")
+    .split("/")
+    .filter(Boolean)[0];
+
+  if (seg && allowed.includes(seg.toLowerCase())) {
+    return seg.toLowerCase();
+  }
+
+  // ✅ 2) Fallback to query: ?client=jeff
   const params = new URLSearchParams(window.location.search);
   const raw = params.get("client");
   const client = raw ? String(raw).toLowerCase().trim().replace(/\s+/g, "-") : "";
 
-  const allowed = ["alana", "blake", "jeff", "coach"];
-  if (!client) return "alana";
-  if (!allowed.includes(client)) return "alana";
-  return client;
+  if (client && allowed.includes(client)) return client;
+
+  // ✅ 3) Default
+  return "alana";
 }
 
 function bootWhenReady() {

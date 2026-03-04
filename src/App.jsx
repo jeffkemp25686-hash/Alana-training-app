@@ -1,25 +1,25 @@
 import { useEffect, useMemo, useState } from "react";
 
 function getClientFromURL() {
-  const params = new URLSearchParams(window.location.search);
-  const raw = params.get("client");
-
   const allowed = ["alana", "blake", "jeff", "coach"];
 
-  if (raw) {
-    const client = String(raw).toLowerCase().trim().replace(/\s+/g, "-");
+  // ✅ 1) Prefer path: /jeff, /alana, /blake, /coach
+  const seg = (window.location.pathname || "/")
+    .split("/")
+    .filter(Boolean)[0];
 
-    if (allowed.includes(client)) {
-      localStorage.setItem("lastClient", client);
-      return client;
-    }
+  if (seg && allowed.includes(seg.toLowerCase())) {
+    return seg.toLowerCase();
   }
 
-  const saved = localStorage.getItem("lastClient");
-  if (saved && allowed.includes(saved)) {
-    return saved;
-  }
+  // ✅ 2) Fallback to query: ?client=jeff
+  const params = new URLSearchParams(window.location.search);
+  const raw = params.get("client");
+  const client = raw ? String(raw).toLowerCase().trim().replace(/\s+/g, "-") : "";
 
+  if (client && allowed.includes(client)) return client;
+
+  // ✅ 3) Default
   return "alana";
 }
 
