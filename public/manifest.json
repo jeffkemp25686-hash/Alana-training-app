@@ -1,7 +1,8 @@
-{
-  "name": "Alana Training",
-  "short_name": "Alana Training",
-  "start_url": "/",
+ {
+  "name": "Athlete Training",
+  "short_name": "Training",
+  "start_url": ".",
+  "scope": "/",
   "display": "standalone",
   "background_color": "#111111",
   "theme_color": "#111111",
