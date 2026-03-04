@@ -1,16 +1,22 @@
 import { useEffect, useMemo, useState } from "react";
 
+
 function getClientFromURL() {
   const params = new URLSearchParams(window.location.search);
-  const client = params.get("client");
-  if (!client) return "alana";
-  return String(client).toLowerCase().trim().replace(/\s+/g, "-");
+  const raw = params.get("client");
+  const client = raw ? String(raw).toLowerCase().trim().replace(/\s+/g, "-") : "";
+
+  const allowed = ["alana", "blake", "jeff"];
+  if (!client) return "alana";              // default landing client
+  if (!allowed.includes(client)) return "alana"; // refuse unknown clients
+  return client;
 }
 
 // 🔐 Set PIN per client ("" disables PIN)
 const CLIENT_PINS = {
   alana: "1357",
   blake: "2468",
+  jeff: "2903",
 };
 
 function callShowTab(tab) {

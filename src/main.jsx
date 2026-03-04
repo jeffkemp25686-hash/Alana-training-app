@@ -6,9 +6,13 @@ import "./styles.css";
 
 function getClientFromURL() {
   const params = new URLSearchParams(window.location.search);
-  const client = params.get("client");
+  const raw = params.get("client");
+  const client = raw ? String(raw).toLowerCase().trim().replace(/\s+/g, "-") : "";
+
+  const allowed = ["alana", "blake", "jeff"];
   if (!client) return "alana";
-  return String(client).toLowerCase().trim().replace(/\s+/g, "-");
+  if (!allowed.includes(client)) return "alana";
+  return client;
 }
 
 function bootWhenReady() {
