@@ -4,26 +4,45 @@ import App from "./App.jsx";
 import "./appCore.js";
 import "./styles.css";
 
+function getCookie(name) {
+  const m = document.cookie.match(new RegExp("(^|; )" + name + "=([^;]*)"));
+  return m ? decodeURIComponent(m[2]) : "";
+}
+
+function setCookie(name, value) {
+  document.cookie = `${name}=${encodeURIComponent(value)}; path=/; max-age=31536000`;
+}
+
 function getClientFromURL() {
   const allowed = ["alana", "blake", "jeff", "coach"];
 
-  // ✅ 1) Prefer path: /jeff, /alana, /blake, /coach
-  const seg = (window.location.pathname || "/")
-    .split("/")
-    .filter(Boolean)[0];
-
-  if (seg && allowed.includes(seg.toLowerCase())) {
-    return seg.toLowerCase();
+  // 1) Prefer PATH: /jeff
+  const seg = (window.location.pathname || "/").split("/").filter(Boolean)[0];
+  const pathClient = seg ? seg.toLowerCase() : "";
+  if (pathClient && allowed.includes(pathClient)) {
+    localStorage.setItem("lastClient", pathClient);
+    setCookie("lastClient", pathClient);
+    return pathClient;
   }
 
-  // ✅ 2) Fallback to query: ?client=jeff
+  // 2) Fallback to QUERY: ?client=jeff
   const params = new URLSearchParams(window.location.search);
   const raw = params.get("client");
-  const client = raw ? String(raw).toLowerCase().trim().replace(/\s+/g, "-") : "";
+  const qClient = raw ? String(raw).toLowerCase().trim().replace(/\s+/g, "-") : "";
+  if (qClient && allowed.includes(qClient)) {
+    localStorage.setItem("lastClient", qClient);
+    setCookie("lastClient", qClient);
+    return qClient;
+  }
 
-  if (client && allowed.includes(client)) return client;
+  // 3) If launched at "/" (common on iOS home screen), recover last client from cookie/localStorage
+  const cookieClient = getCookie("lastClient");
+  if (cookieClient && allowed.includes(cookieClient)) return cookieClient;
 
-  // ✅ 3) Default
+  const saved = localStorage.getItem("lastClient");
+  if (saved && allowed.includes(saved)) return saved;
+
+  // 4) Default
   return "alana";
 }
 
