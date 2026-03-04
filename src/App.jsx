@@ -3,14 +3,24 @@ import { useEffect, useMemo, useState } from "react";
 function getClientFromURL() {
   const params = new URLSearchParams(window.location.search);
   const raw = params.get("client");
-  const client = raw
-    ? String(raw).toLowerCase().trim().replace(/\s+/g, "-")
-    : "";
 
   const allowed = ["alana", "blake", "jeff", "coach"];
-  if (!client) return "alana"; // default landing client
-  if (!allowed.includes(client)) return "alana"; // refuse unknown clients
-  return client;
+
+  if (raw) {
+    const client = String(raw).toLowerCase().trim().replace(/\s+/g, "-");
+
+    if (allowed.includes(client)) {
+      localStorage.setItem("lastClient", client);
+      return client;
+    }
+  }
+
+  const saved = localStorage.getItem("lastClient");
+  if (saved && allowed.includes(saved)) {
+    return saved;
+  }
+
+  return "alana";
 }
 
 // 🔐 Set PIN per client ("" disables PIN)
