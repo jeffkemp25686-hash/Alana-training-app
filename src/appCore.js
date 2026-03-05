@@ -91,83 +91,6 @@ function getAthleteName() {
   return s.charAt(0).toUpperCase() + s.slice(1);
 }
 
-// Expose Sheets URL for coach dashboard utilities (read-only)
-window.__SHEETS_URL = SHEETS_URL;
-
-// Coach Analytics: scan recent abs days, fetch set rows per athlete, build summary.
-// Uses existing Apps Script action=getSets endpoint.
-window.fetchCoachSummary = async function fetchCoachSummary(opts = {}) {
-  const athletes = Array.isArray(opts.athletes) && opts.athletes.length
-    ? opts.athletes
-    : ["Alana", "Blake", "Jeff"];
-  const daysBack = Number.isFinite(opts.daysBack) ? Math.max(1, opts.daysBack) : 21;
-
-  const currentAbs = (typeof getAbsDay === "function") ? getAbsDay() : 0;
-  const startAbs = Math.max(0, currentAbs - (daysBack - 1));
-
-  const results = {};
-  for (const athlete of athletes) {
-    results[athlete] = {
-      athlete,
-      lastSyncTs: null,
-      lastWorkoutDate: null,
-      sessions7d: 0,
-      setRows7d: 0,
-      scannedDays: 0,
-      errors: 0,
-    };
-  }
-
-  // Helper to update last sync/workout from rows
-  function ingest(athlete, abs, dateStr, rows) {
-    const r = results[athlete];
-    if (!rows || !rows.length) return;
-    // rows: [rowId, ts, athlete, date, exName, setNum, targetReps, weight, reps]
-    const tsList = rows.map(x => x && x[1]).filter(Boolean);
-    const maxTs = tsList.sort().slice(-1)[0] || null;
-    if (maxTs && (!r.lastSyncTs || maxTs > r.lastSyncTs)) r.lastSyncTs = maxTs;
-    // treat any rows as a workout on that date
-    if (!r.lastWorkoutDate || dateStr > r.lastWorkoutDate) r.lastWorkoutDate = dateStr;
-  }
-
-  // Scan abs days newest -> oldest for lastWorkout/lastSync and last 7d counts
-  for (let abs = currentAbs; abs >= startAbs; abs--) {
-    const dateStr = (typeof sessionSuffixForAbs === "function")
-      ? sessionSuffixForAbs(abs)
-      : "";
-    const in7d = abs >= Math.max(0, currentAbs - 6);
-
-    // Fetch each athlete's sets for that viewed day
-    // Note: we intentionally do sequential fetches to be gentle on Apps Script quotas.
-    for (const athlete of athletes) {
-      results[athlete].scannedDays += 1;
-      const qs = new URLSearchParams({
-        action: "getSets",
-        athlete,
-        date: dateStr,
-        abs: String(abs),
-      });
-
-      try {
-        const res = await fetch(`${SHEETS_URL}?${qs.toString()}`, { cache: "no-store" });
-        const data = await res.json();
-        const rows = Array.isArray(data.setRows) ? data.setRows : [];
-        ingest(athlete, abs, dateStr, rows);
-
-        if (in7d && rows.length) {
-          results[athlete].sessions7d += 1;
-          results[athlete].setRows7d += rows.length;
-        }
-      } catch (e) {
-        console.warn("Coach summary fetch failed", athlete, abs, e);
-        results[athlete].errors += 1;
-      }
-    }
-  }
-
-  return Object.values(results);
-};
-
 
 const NUTRITION_TARGETS = {
   protein_g: 110,
@@ -1189,17 +1112,32 @@ const repsKey   = `d${dayIndex}-e${exIndex}-s${s}-r-${ss}`;
       </button>
       <p id="syncStatus" style="color:#666; margin-top:8px;"></p>
 
-      ${
-        isReadOnly
-          ? `
-            <button onclick="pullSetsFromCoachForViewedDay()" style="padding:10px 12px;cursor:pointer;margin-top:10px;">
-              Pull from Coach ⬇️ (Sets)
-            </button>
-          `
-          : ""
-      }
+      $
+{
+  (isReadOnly || isCoachMode())
+    ? `
+      <div style="margin-top:10px; display:flex; flex-wrap:wrap; gap:10px;">
+        <button onclick="pullSetsFromCoachForViewedDay()" style="padding:10px 12px;cursor:pointer;">
+          Pull from Coach ⬇️ (Sets)
+        </button>
 
-      <button
+        ${
+          isCoachMode()
+            ? `
+              <button onclick="pullLastDaysFromCoach(7)" style="padding:10px 12px;cursor:pointer;">
+                Pull last 7 days ⬇️
+              </button>
+              <button onclick="overwriteViewedDayFromCoach()" style="padding:10px 12px;cursor:pointer;">
+                Overwrite viewed day ⇄
+              </button>
+            `
+            : ""
+        }
+      </div>
+    `
+    : ""
+}
+<button
         id="finishBtn"
         onclick="finishWorkout()"
         style="padding:10px 12px;cursor:pointer;margin-top:10px;"
@@ -1382,6 +1320,86 @@ console.log("Match exIndex", exIndex, "for", exName, "in day", day.name);
 
 renderToday();
 if (el) el.textContent = "✅ Pulled from coach";
+};
+
+
+// Alias: older UI expects pullFromCoach()
+window.pullFromCoach = window.pullSetsFromCoachForViewedDay;
+
+// Pull last N days (default 7) of sets for the ACTIVE athlete into localStorage
+// Useful for device restores / cache issues.
+window.pullLastDaysFromCoach = async function pullLastDaysFromCoach(days = 7) {
+  const athlete = getAthleteName();
+  const currentAbs = getAbsDay();
+  const startAbs = Math.max(0, currentAbs - (Math.max(1, days) - 1));
+
+  const statusEl = document.getElementById("syncStatus");
+  if (statusEl) statusEl.textContent = `⬇️ Pulling last ${days} days from coach…`;
+
+  for (let abs = currentAbs; abs >= startAbs; abs--) {
+    const viewAbs = abs;
+    const dayIndex = viewAbs % getActiveProgram().length;
+    const day = getActiveProgram()[dayIndex];
+    const date = sessionSuffixForAbs(viewAbs);
+
+    const qs = new URLSearchParams({
+      action: "getSets",
+      athlete,
+      date,
+      abs: String(viewAbs),
+    });
+
+    try {
+      const res = await fetch(`${SHEETS_URL}?${qs.toString()}`, { cache: "no-store" });
+      const data = await res.json();
+      const rows = Array.isArray(data.setRows) ? data.setRows : [];
+      if (!rows.length) continue;
+
+      rows.forEach((r) => {
+        const exName = r[4];
+        const setNum = Number(r[5]);
+        const weight = r[7];
+        const reps = r[8];
+
+        const exIndex = day.exercises.findIndex((ex) => String(ex.name) === String(exName));
+        if (exIndex < 0) return;
+
+        const wKey = `d${dayIndex}-e${exIndex}-s${setNum}-w-${date}`;
+        const rKey = `d${dayIndex}-e${exIndex}-s${setNum}-r-${date}`;
+
+        if (weight !== "") localStorage.setItem(wKey, weight);
+        if (reps !== "") localStorage.setItem(rKey, reps);
+      });
+    } catch (e) {
+      console.warn("pullLastDaysFromCoach failed for abs", abs, e);
+    }
+  }
+
+  renderToday();
+  if (statusEl) statusEl.textContent = `✅ Pulled last ${days} days from coach`;
+};
+
+// Overwrite the VIEWED day with coach data: clears local entries for that day, then pulls from coach.
+window.overwriteViewedDayFromCoach = async function overwriteViewedDayFromCoach() {
+  const viewAbs = getViewAbsDay();
+  const dayIndex = viewAbs % getActiveProgram().length;
+  const day = getActiveProgram()[dayIndex];
+  const date = sessionSuffixForAbs(viewAbs);
+
+  if (!confirm(`Overwrite ${date} with coach data? This will replace local sets for the viewed day.`)) {
+    return;
+  }
+
+  // Clear local set entries for this day/date
+  day.exercises.forEach((ex, exIndex) => {
+    const sets = Number(ex.sets || 1);
+    for (let s = 1; s <= sets; s++) {
+      localStorage.removeItem(`d${dayIndex}-e${exIndex}-s${s}-w-${date}`);
+      localStorage.removeItem(`d${dayIndex}-e${exIndex}-s${s}-r-${date}`);
+    }
+  });
+
+  await window.pullSetsFromCoachForViewedDay();
 };
 // ==========================
 // FINISH WORKOUT (AUTO SYNC + ADVANCE)
