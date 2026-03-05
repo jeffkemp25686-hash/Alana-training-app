@@ -19,6 +19,185 @@ import {
   flushSheetsQueue,
 } from "./lib/sync.js";
 
+/**
+ * ==========================
+ * PWA UPDATE PROMPT (Service Worker)
+ * Shows: "Update available — Refresh" (does NOT auto-refresh)
+ * Safe: warns if there are pending queued sync items.
+ * ==========================
+ */
+function initPwaUpdatePrompt() {
+  if (!("serviceWorker" in navigator)) return;
+
+  const BANNER_ID = "pwaUpdateBanner";
+  let controllerListenerInstalled = false;
+
+  function ensureBanner(reg) {
+    let el = document.getElementById(BANNER_ID);
+    if (!el) {
+      el = document.createElement("div");
+      el.id = BANNER_ID;
+      el.style.position = "fixed";
+      el.style.left = "12px";
+      el.style.right = "12px";
+      el.style.bottom = "12px";
+      el.style.zIndex = "99999";
+      el.style.padding = "12px 12px";
+      el.style.borderRadius = "14px";
+      el.style.background = "rgba(20,20,20,0.92)";
+      el.style.border = "1px solid rgba(255,255,255,0.18)";
+      el.style.color = "white";
+      el.style.display = "flex";
+      el.style.alignItems = "center";
+      el.style.justifyContent = "space-between";
+      el.style.gap = "10px";
+      el.style.boxShadow = "0 10px 30px rgba(0,0,0,0.35)";
+
+      const left = document.createElement("div");
+      left.style.display = "grid";
+      left.style.gap = "2px";
+
+      const title = document.createElement("div");
+      title.textContent = "Update available";
+      title.style.fontWeight = "900";
+      title.style.fontSize = "14px";
+
+      const sub = document.createElement("div");
+      sub.id = `${BANNER_ID}Sub`;
+      sub.textContent = "Refresh to load the latest version.";
+      sub.style.opacity = "0.85";
+      sub.style.fontSize = "12px";
+
+      left.appendChild(title);
+      left.appendChild(sub);
+
+      const right = document.createElement("div");
+      right.style.display = "flex";
+      right.style.gap = "8px";
+      right.style.alignItems = "center";
+
+      const laterBtn = document.createElement("button");
+      laterBtn.textContent = "Later";
+      laterBtn.style.padding = "10px 12px";
+      laterBtn.style.borderRadius = "12px";
+      laterBtn.style.border = "1px solid rgba(255,255,255,0.18)";
+      laterBtn.style.background = "rgba(255,255,255,0.06)";
+      laterBtn.style.color = "white";
+      laterBtn.style.fontWeight = "800";
+      laterBtn.style.cursor = "pointer";
+      laterBtn.onclick = () => {
+        const e = document.getElementById(BANNER_ID);
+        if (e) e.remove();
+      };
+
+      const refreshBtn = document.createElement("button");
+      refreshBtn.id = `${BANNER_ID}Refresh`;
+      refreshBtn.textContent = "Refresh";
+      refreshBtn.style.padding = "10px 12px";
+      refreshBtn.style.borderRadius = "12px";
+      refreshBtn.style.border = "none";
+      refreshBtn.style.background = "rgba(0,180,255,0.9)";
+      refreshBtn.style.color = "black";
+      refreshBtn.style.fontWeight = "900";
+      refreshBtn.style.cursor = "pointer";
+
+      refreshBtn.onclick = async () => {
+        let pending = 0;
+        try {
+          pending = typeof getPendingSheetsCount === "function" ? getPendingSheetsCount() : 0;
+        } catch (e) {
+          pending = 0;
+        }
+
+        if (pending > 0) {
+          const ok = confirm(
+            `You have ${pending} pending sync item(s).\n\nRefresh anyway? (Pending items will stay queued, but syncing first is safer.)`
+          );
+          if (!ok) return;
+        }
+
+        // Ensure we reload once the new SW controls the page
+        if (!controllerListenerInstalled) {
+          controllerListenerInstalled = true;
+          navigator.serviceWorker.addEventListener("controllerchange", () => {
+            try { location.reload(); } catch (e) {}
+          });
+        }
+
+        try {
+          if (reg && reg.waiting) {
+            reg.waiting.postMessage({ type: "SKIP_WAITING" });
+          } else {
+            // No waiting SW — just reload
+            location.reload();
+          }
+        } catch (e) {
+          location.reload();
+        }
+      };
+
+      right.appendChild(laterBtn);
+      right.appendChild(refreshBtn);
+
+      el.appendChild(left);
+      el.appendChild(right);
+
+      document.body.appendChild(el);
+    } else {
+      // update subtext if pending queue exists
+      const sub = document.getElementById(`${BANNER_ID}Sub`);
+      if (sub) {
+        let pending = 0;
+        try {
+          pending = typeof getPendingSheetsCount === "function" ? getPendingSheetsCount() : 0;
+        } catch (e) {}
+        sub.textContent =
+          pending > 0
+            ? `Update available. (${pending} sync item(s) pending — consider syncing first.)`
+            : "Refresh to load the latest version.";
+      }
+    }
+  }
+
+  async function attachToRegistration(reg) {
+    if (!reg) return;
+
+    // If there's already a waiting worker, show now.
+    if (reg.waiting && navigator.serviceWorker.controller) {
+      ensureBanner(reg);
+    }
+
+    reg.addEventListener("updatefound", () => {
+      const sw = reg.installing;
+      if (!sw) return;
+      sw.addEventListener("statechange", () => {
+        // When installed and we already have a controller, it means an update is ready.
+        if (sw.state === "installed" && navigator.serviceWorker.controller) {
+          ensureBanner(reg);
+        }
+      });
+    });
+  }
+
+  // Wait until load so document.body exists and SW registration is likely ready
+  window.addEventListener("load", async () => {
+    // Poll a few times because register() happens on load in main.jsx
+    for (let i = 0; i < 15; i++) {
+      try {
+        const reg = await navigator.serviceWorker.getRegistration();
+        if (reg) {
+          await attachToRegistration(reg);
+          break;
+        }
+      } catch (e) {}
+      await new Promise((r) => setTimeout(r, 500));
+    }
+  });
+}
+
+// Kick off update prompt setup immediately (safe no-op if SW unsupported)
+initPwaUpdatePrompt();
+
 let app;
 // ==========================
 // CLIENT HELPERS
