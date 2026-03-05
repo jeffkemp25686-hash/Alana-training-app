@@ -1106,15 +1106,9 @@ const repsKey   = `d${dayIndex}-e${exIndex}-s${s}-r-${ss}`;
     `;
   });
 
- html += `
-      <button onclick="syncToCoach()" style="padding:10px 12px;cursor:pointer;">
-        Sync to Coach ✅
-      </button>
-      <p id="syncStatus" style="color:#666; margin-top:8px;"></p>
-
-      $
-{
-  const coachRestoreToolsHTML =
+ 
+// Coach restore tools (rendered under Sync button) — safe string builder (no nested template literals)
+const coachRestoreToolsHTML =
   (isReadOnly || isCoachMode())
     ? [
         '<div style="margin-top:10px; display:flex; flex-wrap:wrap; gap:10px;">',
@@ -1128,7 +1122,14 @@ const repsKey   = `d${dayIndex}-e${exIndex}-s${s}-r-${ss}`;
         '</div>',
       ].join("")
     : "";
-}
+
+html += `
+      <button onclick="syncToCoach()" style="padding:10px 12px;cursor:pointer;">
+        Sync to Coach ✅
+      </button>
+      <p id="syncStatus" style="color:#666; margin-top:8px;"></p>
+
+      ${coachRestoreToolsHTML}
 <button
         id="finishBtn"
         onclick="finishWorkout()"
