@@ -1114,28 +1114,20 @@ const repsKey   = `d${dayIndex}-e${exIndex}-s${s}-r-${ss}`;
 
       $
 {
+  const coachRestoreToolsHTML =
   (isReadOnly || isCoachMode())
-    ? `
-      <div style="margin-top:10px; display:flex; flex-wrap:wrap; gap:10px;">
-        <button onclick="pullSetsFromCoachForViewedDay()" style="padding:10px 12px;cursor:pointer;">
-          Pull from Coach ⬇️ (Sets)
-        </button>
-
-        ${
-          isCoachMode()
-            ? `
-              <button onclick="pullLastDaysFromCoach(7)" style="padding:10px 12px;cursor:pointer;">
-                Pull last 7 days ⬇️
-              </button>
-              <button onclick="overwriteViewedDayFromCoach()" style="padding:10px 12px;cursor:pointer;">
-                Overwrite viewed day ⇄
-              </button>
-            `
-            : ""
-        }
-      </div>
-    `
-    : ""
+    ? [
+        '<div style="margin-top:10px; display:flex; flex-wrap:wrap; gap:10px;">',
+        '<button onclick="window.pullSetsFromCoachForViewedDay?.()" style="padding:10px 12px;cursor:pointer;">Pull from Coach ⬇️ (Sets)</button>',
+        isCoachMode()
+          ? '<button onclick="window.pullLastDaysFromCoach?.(7)" style="padding:10px 12px;cursor:pointer;">Pull last 7 days ⬇️</button>'
+          : '',
+        isCoachMode()
+          ? '<button onclick="window.overwriteViewedDayFromCoach?.()" style="padding:10px 12px;cursor:pointer;">Overwrite viewed day ⇄</button>'
+          : '',
+        '</div>',
+      ].join("")
+    : "";
 }
 <button
         id="finishBtn"
