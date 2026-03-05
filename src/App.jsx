@@ -1,16 +1,56 @@
 import { useEffect, useMemo, useState } from "react";
 
+// --- cookie helpers (for iOS standalone reliability) ---
+function getCookie(name) {
+  const m = document.cookie.match(new RegExp("(^|; )" + name + "=([^;]*)"));
+  return m ? decodeURIComponent(m[2]) : "";
+}
+function setCookie(name, value) {
+  document.cookie = `${name}=${encodeURIComponent(value)}; path=/; max-age=31536000`;
+}
+
+function normalizeClient(raw) {
+  return raw ? String(raw).toLowerCase().trim().replace(/\s+/g, "-") : "";
+}
+
 function getClientFromURL() {
+  const allowed = ["alana", "blake", "jeff", "coach"];
+
+  // 1) Prefer PATH: /jeff, /alana, /blake, /coach
+  const seg = (window.location.pathname || "/").split("/").filter(Boolean)[0];
+  const pathClient = normalizeClient(seg);
+  if (pathClient && allowed.includes(pathClient)) {
+    localStorage.setItem("lastClient", pathClient);
+    setCookie("lastClient", pathClient);
+    return pathClient;
+  }
+
+  // 2) Fallback QUERY: ?client=jeff
   const params = new URLSearchParams(window.location.search);
-  const client = params.get("client");
-  if (!client) return "alana";
-  return String(client).toLowerCase().trim().replace(/\s+/g, "-");
+  const qClient = normalizeClient(params.get("client"));
+  if (qClient && allowed.includes(qClient)) {
+    localStorage.setItem("lastClient", qClient);
+    setCookie("lastClient", qClient);
+    return qClient;
+  }
+
+  // 3) iOS standalone often launches "/" → recover last client
+  const cookieClient = getCookie("lastClient");
+  if (cookieClient && allowed.includes(cookieClient)) return cookieClient;
+
+  const saved = localStorage.getItem("lastClient");
+  if (saved && allowed.includes(saved)) return saved;
+
+  // 4) default
+  return "alana";
 }
 
 // 🔐 Set PIN per client ("" disables PIN)
 const CLIENT_PINS = {
   alana: "1357",
   blake: "2468",
+  jeff: "2903",
+  coach: "1986",
 };
 
 function callShowTab(tab) {
@@ -26,11 +66,6 @@ export default function App() {
   const [active, setActive] = useState("today");
   const [label, setLabel] = useState("");
   const [phase, setPhase] = useState("");
-
-  // Coach dashboard analytics
-  const [coachStats, setCoachStats] = useState(null);
-  const [coachStatsLoading, setCoachStatsLoading] = useState(false);
-  const [coachStatsError, setCoachStatsError] = useState("");
 
   const [clientId] = useState(() => getClientFromURL());
   const clientName = useMemo(() => prettyName(clientId), [clientId]);
@@ -84,6 +119,9 @@ export default function App() {
     }
   }
 
+  // ----------------------------
+  // PIN GATE
+  // ----------------------------
   if (!unlocked) {
     return (
       <div className="shell">
@@ -152,6 +190,79 @@ export default function App() {
     );
   }
 
+  // ----------------------------
+  // COACH DASHBOARD
+  // ----------------------------
+  if (clientId === "coach") {
+    return (
+      <div className="shell">
+        <header className="topbar">
+          <span>Coach Dashboard</span>
+
+          <button
+            className="navbtn"
+            onClick={() => {
+              localStorage.removeItem("coachMode");
+              location.reload();
+            }}
+            style={{ marginLeft: 12 }}
+            title="Disable coach mode on this device"
+          >
+            Coach Mode OFF
+          </button>
+        </header>
+
+        <main className="content" style={{ padding: 18 }}>
+          <div style={{ display: "grid", gap: 12, maxWidth: 520, margin: "0 auto" }}>
+            {["alana", "blake", "jeff"].map((id) => (
+              <div
+                key={id}
+                style={{
+                  background: "rgba(255,255,255,0.06)",
+                  border: "1px solid rgba(255,255,255,0.08)",
+                  borderRadius: 16,
+                  padding: 14,
+                  display: "flex",
+                  alignItems: "center",
+                  justifyContent: "space-between",
+                  gap: 10,
+                }}
+              >
+                <div style={{ fontWeight: 900, fontSize: 16 }}>
+                  {prettyName(id)}
+                </div>
+
+                <div style={{ display: "flex", gap: 10 }}>
+                  <a className="navbtn" href={`/${id}`} style={{ textDecoration: "none" }}>
+                    Open
+                  </a>
+
+                  <button
+                    className="navbtn"
+                    onClick={() => {
+                      localStorage.setItem("coachMode", "1");
+                      window.location.href = `/${id}`;
+                    }}
+                    title="Open with coach permissions on this device"
+                  >
+                    Open as Coach
+                  </button>
+                </div>
+              </div>
+            ))}
+          </div>
+
+          <div style={{ maxWidth: 520, margin: "14px auto 0", opacity: 0.8, fontSize: 13 }}>
+            Coach PIN protects this dashboard. “Open as Coach” enables coach mode only on this device.
+          </div>
+        </main>
+      </div>
+    );
+  }
+
+  // ----------------------------
+  // NORMAL APP SHELL
+  // ----------------------------
   return (
     <div className="shell">
       <header className="topbar">
@@ -168,7 +279,7 @@ export default function App() {
 
       <footer className="bottomnavOuter">
         <nav className="bottomnav">
-          {["today","run","nutrition","body","progress"].map(tab => (
+          {["today", "run", "nutrition", "body", "progress"].map((tab) => (
             <button
               key={tab}
               className={`navbtn ${active === tab ? "active" : ""}`}
@@ -178,6 +289,7 @@ export default function App() {
               <span className="navlabel">
                 {tab.charAt(0).toUpperCase() + tab.slice(1)}
               </span>
+
               {tab === "progress" && (
                 <span
                   id="progressBadge"
