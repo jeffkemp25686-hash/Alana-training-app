@@ -19,185 +19,6 @@ import {
   flushSheetsQueue,
 } from "./lib/sync.js";
 
-/**
- * ==========================
- * PWA UPDATE PROMPT (Service Worker)
- * Shows: "Update available — Refresh" (does NOT auto-refresh)
- * Safe: warns if there are pending queued sync items.
- * ==========================
- */
-function initPwaUpdatePrompt() {
-  if (!("serviceWorker" in navigator)) return;
-
-  const BANNER_ID = "pwaUpdateBanner";
-  let controllerListenerInstalled = false;
-
-  function ensureBanner(reg) {
-    let el = document.getElementById(BANNER_ID);
-    if (!el) {
-      el = document.createElement("div");
-      el.id = BANNER_ID;
-      el.style.position = "fixed";
-      el.style.left = "12px";
-      el.style.right = "12px";
-      el.style.bottom = "12px";
-      el.style.zIndex = "99999";
-      el.style.padding = "12px 12px";
-      el.style.borderRadius = "14px";
-      el.style.background = "rgba(20,20,20,0.92)";
-      el.style.border = "1px solid rgba(255,255,255,0.18)";
-      el.style.color = "white";
-      el.style.display = "flex";
-      el.style.alignItems = "center";
-      el.style.justifyContent = "space-between";
-      el.style.gap = "10px";
-      el.style.boxShadow = "0 10px 30px rgba(0,0,0,0.35)";
-
-      const left = document.createElement("div");
-      left.style.display = "grid";
-      left.style.gap = "2px";
-
-      const title = document.createElement("div");
-      title.textContent = "Update available";
-      title.style.fontWeight = "900";
-      title.style.fontSize = "14px";
-
-      const sub = document.createElement("div");
-      sub.id = `${BANNER_ID}Sub`;
-      sub.textContent = "Refresh to load the latest version.";
-      sub.style.opacity = "0.85";
-      sub.style.fontSize = "12px";
-
-      left.appendChild(title);
-      left.appendChild(sub);
-
-      const right = document.createElement("div");
-      right.style.display = "flex";
-      right.style.gap = "8px";
-      right.style.alignItems = "center";
-
-      const laterBtn = document.createElement("button");
-      laterBtn.textContent = "Later";
-      laterBtn.style.padding = "10px 12px";
-      laterBtn.style.borderRadius = "12px";
-      laterBtn.style.border = "1px solid rgba(255,255,255,0.18)";
-      laterBtn.style.background = "rgba(255,255,255,0.06)";
-      laterBtn.style.color = "white";
-      laterBtn.style.fontWeight = "800";
-      laterBtn.style.cursor = "pointer";
-      laterBtn.onclick = () => {
-        const e = document.getElementById(BANNER_ID);
-        if (e) e.remove();
-      };
-
-      const refreshBtn = document.createElement("button");
-      refreshBtn.id = `${BANNER_ID}Refresh`;
-      refreshBtn.textContent = "Refresh";
-      refreshBtn.style.padding = "10px 12px";
-      refreshBtn.style.borderRadius = "12px";
-      refreshBtn.style.border = "none";
-      refreshBtn.style.background = "rgba(0,180,255,0.9)";
-      refreshBtn.style.color = "black";
-      refreshBtn.style.fontWeight = "900";
-      refreshBtn.style.cursor = "pointer";
-
-      refreshBtn.onclick = async () => {
-        let pending = 0;
-        try {
-          pending = typeof getPendingSheetsCount === "function" ? getPendingSheetsCount() : 0;
-        } catch (e) {
-          pending = 0;
-        }
-
-        if (pending > 0) {
-          const ok = confirm(
-            `You have ${pending} pending sync item(s).\n\nRefresh anyway? (Pending items will stay queued, but syncing first is safer.)`
-          );
-          if (!ok) return;
-        }
-
-        // Ensure we reload once the new SW controls the page
-        if (!controllerListenerInstalled) {
-          controllerListenerInstalled = true;
-          navigator.serviceWorker.addEventListener("controllerchange", () => {
-            try { location.reload(); } catch (e) {}
-          });
-        }
-
-        try {
-          if (reg && reg.waiting) {
-            reg.waiting.postMessage({ type: "SKIP_WAITING" });
-          } else {
-            // No waiting SW — just reload
-            location.reload();
-          }
-        } catch (e) {
-          location.reload();
-        }
-      };
-
-      right.appendChild(laterBtn);
-      right.appendChild(refreshBtn);
-
-      el.appendChild(left);
-      el.appendChild(right);
-
-      document.body.appendChild(el);
-    } else {
-      // update subtext if pending queue exists
-      const sub = document.getElementById(`${BANNER_ID}Sub`);
-      if (sub) {
-        let pending = 0;
-        try {
-          pending = typeof getPendingSheetsCount === "function" ? getPendingSheetsCount() : 0;
-        } catch (e) {}
-        sub.textContent =
-          pending > 0
-            ? `Update available. (${pending} sync item(s) pending — consider syncing first.)`
-            : "Refresh to load the latest version.";
-      }
-    }
-  }
-
-  async function attachToRegistration(reg) {
-    if (!reg) return;
-
-    // If there's already a waiting worker, show now.
-    if (reg.waiting && navigator.serviceWorker.controller) {
-      ensureBanner(reg);
-    }
-
-    reg.addEventListener("updatefound", () => {
-      const sw = reg.installing;
-      if (!sw) return;
-      sw.addEventListener("statechange", () => {
-        // When installed and we already have a controller, it means an update is ready.
-        if (sw.state === "installed" && navigator.serviceWorker.controller) {
-          ensureBanner(reg);
-        }
-      });
-    });
-  }
-
-  // Wait until load so document.body exists and SW registration is likely ready
-  window.addEventListener("load", async () => {
-    // Poll a few times because register() happens on load in main.jsx
-    for (let i = 0; i < 15; i++) {
-      try {
-        const reg = await navigator.serviceWorker.getRegistration();
-        if (reg) {
-          await attachToRegistration(reg);
-          break;
-        }
-      } catch (e) {}
-      await new Promise((r) => setTimeout(r, 500));
-    }
-  });
-}
-
-// Kick off update prompt setup immediately (safe no-op if SW unsupported)
-initPwaUpdatePrompt();
-
 let app;
 // ==========================
 // CLIENT HELPERS
@@ -269,6 +90,83 @@ function getAthleteName() {
   const s = String(cid || "alana");
   return s.charAt(0).toUpperCase() + s.slice(1);
 }
+
+// Expose Sheets URL for coach dashboard utilities (read-only)
+window.__SHEETS_URL = SHEETS_URL;
+
+// Coach Analytics: scan recent abs days, fetch set rows per athlete, build summary.
+// Uses existing Apps Script action=getSets endpoint.
+window.fetchCoachSummary = async function fetchCoachSummary(opts = {}) {
+  const athletes = Array.isArray(opts.athletes) && opts.athletes.length
+    ? opts.athletes
+    : ["Alana", "Blake", "Jeff"];
+  const daysBack = Number.isFinite(opts.daysBack) ? Math.max(1, opts.daysBack) : 21;
+
+  const currentAbs = (typeof getAbsDay === "function") ? getAbsDay() : 0;
+  const startAbs = Math.max(0, currentAbs - (daysBack - 1));
+
+  const results = {};
+  for (const athlete of athletes) {
+    results[athlete] = {
+      athlete,
+      lastSyncTs: null,
+      lastWorkoutDate: null,
+      sessions7d: 0,
+      setRows7d: 0,
+      scannedDays: 0,
+      errors: 0,
+    };
+  }
+
+  // Helper to update last sync/workout from rows
+  function ingest(athlete, abs, dateStr, rows) {
+    const r = results[athlete];
+    if (!rows || !rows.length) return;
+    // rows: [rowId, ts, athlete, date, exName, setNum, targetReps, weight, reps]
+    const tsList = rows.map(x => x && x[1]).filter(Boolean);
+    const maxTs = tsList.sort().slice(-1)[0] || null;
+    if (maxTs && (!r.lastSyncTs || maxTs > r.lastSyncTs)) r.lastSyncTs = maxTs;
+    // treat any rows as a workout on that date
+    if (!r.lastWorkoutDate || dateStr > r.lastWorkoutDate) r.lastWorkoutDate = dateStr;
+  }
+
+  // Scan abs days newest -> oldest for lastWorkout/lastSync and last 7d counts
+  for (let abs = currentAbs; abs >= startAbs; abs--) {
+    const dateStr = (typeof sessionSuffixForAbs === "function")
+      ? sessionSuffixForAbs(abs)
+      : "";
+    const in7d = abs >= Math.max(0, currentAbs - 6);
+
+    // Fetch each athlete's sets for that viewed day
+    // Note: we intentionally do sequential fetches to be gentle on Apps Script quotas.
+    for (const athlete of athletes) {
+      results[athlete].scannedDays += 1;
+      const qs = new URLSearchParams({
+        action: "getSets",
+        athlete,
+        date: dateStr,
+        abs: String(abs),
+      });
+
+      try {
+        const res = await fetch(`${SHEETS_URL}?${qs.toString()}`, { cache: "no-store" });
+        const data = await res.json();
+        const rows = Array.isArray(data.setRows) ? data.setRows : [];
+        ingest(athlete, abs, dateStr, rows);
+
+        if (in7d && rows.length) {
+          results[athlete].sessions7d += 1;
+          results[athlete].setRows7d += rows.length;
+        }
+      } catch (e) {
+        console.warn("Coach summary fetch failed", athlete, abs, e);
+        results[athlete].errors += 1;
+      }
+    }
+  }
+
+  return Object.values(results);
+};
 
 
 const NUTRITION_TARGETS = {
@@ -480,62 +378,6 @@ const PROGRAMS = {
     ],
   }
 ],
-  jeff: [
-    {
-      name: "Day 1 — Lower Strength (No Grip)",
-      exercises: [
-        { name: "Bike Warm-up (minutes)", sets: 1, reps: 8 },
-        { name: "Hack Squat", sets: 4, reps: 10 },
-        { name: "Leg Press", sets: 4, reps: 12 },
-        { name: "Seated Hamstring Curl", sets: 4, reps: 12 },
-        { name: "Walking Lunges (Right hand only)", sets: 3, reps: 20 },
-        { name: "Standing Calf Raise", sets: 4, reps: 15 },
-        { name: "Incline Walk (minutes)", sets: 1, reps: 10 },
-      ],
-    },
-    {
-      name: "Day 2 — Engine Builder (Bike)",
-      exercises: [
-        { name: "Bike Intervals (3:1 x5)", sets: 5, reps: 1 },
-        { name: "Plank", sets: 3, reps: 60, timerSec: 60 },
-        { name: "Side Plank", sets: 3, reps: 45, timerSec: 45 },
-        { name: "Dead Bug", sets: 3, reps: 20 },
-      ],
-    },
-    {
-      name: "Day 3 — Upper Rehab (Neutral / Single Arm)",
-      exercises: [
-        { name: "Machine Chest Press (L ≤8kg)", sets: 4, reps: 12 },
-        { name: "Neutral Grip Lat Pulldown (L ≤8kg)", sets: 4, reps: 12 },
-        { name: "Single Arm Cable Row (R normal / L ≤8kg)", sets: 3, reps: 12 },
-        { name: "Biceps Curl (R normal / L 2kg)", sets: 3, reps: 15 },
-        { name: "Rope Triceps Pushdown (L ≤8kg)", sets: 3, reps: 15 },
-        { name: "Face Pull", sets: 3, reps: 15 },
-      ],
-    },
-    {
-      name: "Day 4 — Conditioning + Core",
-      exercises: [
-        { name: "Incline Walk (minutes)", sets: 1, reps: 20 },
-        { name: "Bike (seconds)", sets: 4, reps: 60, timerSec: 60 },
-        { name: "Goblet Squat", sets: 4, reps: 15 },
-        { name: "Step Ups", sets: 4, reps: 20 },
-        { name: "Dead Bug", sets: 4, reps: 20 },
-        { name: "Plank", sets: 3, reps: 60, timerSec: 60 },
-      ],
-    },
-    {
-      name: "Day 5 — Lower + Fat Loss (No Grip)",
-      exercises: [
-        { name: "Hack Squat", sets: 4, reps: 8 },
-        { name: "Leg Press", sets: 4, reps: 12 },
-        { name: "Hamstring Curl", sets: 3, reps: 15 },
-        { name: "Leg Extension", sets: 3, reps: 15 },
-        { name: "Bike Intervals (30:90 x10)", sets: 10, reps: 1 },
-        { name: "Copenhagen Plank", sets: 3, reps: 30, timerSec: 30 },
-      ],
-    },
-  ],
 };
 
 function getProgramForClient(clientId) {
@@ -952,175 +794,26 @@ function tickSessionTimer() {
 window.startSessionTimer = startSessionTimer;
 window.resetSessionTimer = resetSessionTimer;
 
-
-// ==========================
-// TIMER AUDIO + PROGRESS BAR + CORE TRACKING
-// ==========================
-let __audioCtx = null;
-function getAudioCtx() {
-  try {
-    const Ctx = window.AudioContext || window.webkitAudioContext;
-    if (!Ctx) return null;
-    if (!__audioCtx) __audioCtx = new Ctx();
-    return __audioCtx;
-  } catch (e) {
-    return null;
-  }
-}
-
-// Simple, reliable beep (works after a user gesture)
-function playBeep(freq = 880, durationSec = 0.12, volume = 0.08) {
-  const ctx = getAudioCtx();
-  if (!ctx) return;
-  if (ctx.state === "suspended") {
-    ctx.resume().catch(() => {});
-  }
-  const t0 = ctx.currentTime;
-  const osc = ctx.createOscillator();
-  const gain = ctx.createGain();
-  osc.type = "sine";
-  osc.frequency.value = freq;
-  gain.gain.value = volume;
-  osc.connect(gain);
-  gain.connect(ctx.destination);
-  osc.start(t0);
-  osc.stop(t0 + durationSec);
-}
-
-function vibratePulse(ms=150){ if(navigator.vibrate){ try{ navigator.vibrate(ms);}catch(e){} } }
-
-
-// Progress bar helper: progressId is an element id whose first child is the fill bar
-function setProgressBar(progressId, pct01) {
-  if (!progressId) return;
-  const wrap = document.getElementById(progressId);
-  if (!wrap) return;
-  const fill = wrap.firstElementChild;
-  if (!fill) return;
-  const pct = Math.max(0, Math.min(1, Number(pct01) || 0));
-  fill.style.width = `${Math.round(pct * 100)}%`;
-}
-
-// --------------------------
-// Core endurance tracking (timed core only)
-// --------------------------
-function isCoreTimerExerciseName(name) {
-  const n = String(name || "").toLowerCase();
-  return n.includes("plank") || n.includes("copenhagen") || n.includes("core");
-}
-
-function coreSecondsKey(ss) {
-  return `coreSeconds_${getActiveClientId()}_${ss}`;
-}
-function coreCompleteKey(ss) {
-  return `coreComplete_${getActiveClientId()}_${ss}`;
-}
-
-function getCoreSecondsForDay(ss) {
-  return Number(localStorage.getItem(coreSecondsKey(ss)) || 0) || 0;
-}
-
-function addCoreSeconds(ss, seconds) {
-  const add = Math.max(0, Number(seconds) || 0);
-  if (!add) return;
-  const next = getCoreSecondsForDay(ss) + add;
-  localStorage.setItem(coreSecondsKey(ss), String(next));
-}
-
-function computeCoreGoalSecondsForDay(dayObj, phase, microWeek) {
-  if (!dayObj) return 0;
-  let goal = 0;
-
-  (dayObj.exercises || []).forEach((ex) => {
-    const adj = applyPhaseToExercise(ex, phase, microWeek);
-    if (!adj || !adj.timerSec) return;
-    if (!isCoreTimerExerciseName(adj.name)) return;
-
-    const sets = Number(adj.sets) || 1;
-    const per = Number(adj.timerSec) || 0;
-
-    const n = String(adj.name || "").toLowerCase();
-    const eachSide = n.includes("side plank") || n.includes("copenhagen") || n.includes("each side");
-    goal += sets * per * (eachSide ? 2 : 1);
-  });
-
-  return goal;
-}
-
-function isCoreCompleteForDay(ss, goalSeconds) {
-  if (!goalSeconds) return false;
-  return getCoreSecondsForDay(ss) >= goalSeconds;
-}
-
-function markCoreCompleteIfDone(ss, goalSeconds) {
-  if (!goalSeconds) return false;
-  if (isCoreCompleteForDay(ss, goalSeconds)) {
-    localStorage.setItem(coreCompleteKey(ss), "1");
-    return true;
-  }
-  return false;
-}
-
-function getCoreCompleteStreak(daysBack = 30) {
-  let streak = 0;
-  const todayAbs = getAbsDay();
-  for (let i = 0; i < daysBack; i++) {
-    const abs = todayAbs - i;
-    if (abs < 0) break;
-    const ss = sessionSuffixForAbs(abs);
-    const v = localStorage.getItem(coreCompleteKey(ss));
-    if (v === "1") streak++;
-    else break;
-  }
-  return streak;
-}
-
-function getCoreSecondsLastNDays(n = 7) {
-  const todayAbs = getAbsDay();
-  let total = 0;
-  for (let i = 0; i < n; i++) {
-    const abs = todayAbs - i;
-    if (abs < 0) break;
-    const ss = sessionSuffixForAbs(abs);
-    total += getCoreSecondsForDay(ss);
-  }
-  return total;
-}
-
 // ==========================
 // REST TIMER
 // ==========================
 function startRestTimer(btn) {
   // ✅ Use per-button rest if provided, otherwise default 60
   let seconds = Number(btn.dataset.rest) || 60;
-  if (seconds <= 0) seconds = 60;
 
-  const total = seconds;
   btn.disabled = true;
-
-  // optional progress bar hookup
-  const progressId = btn.dataset.progressId || "";
 
   const interval = setInterval(() => {
     btn.innerText = `Rest ${seconds}s`;
-
-    // progress goes from 100% → 0%
-    setProgressBar(progressId, seconds / total);
-
     seconds--;
 
     if (seconds < 0) {
       clearInterval(interval);
 
-      // 🔊 beep at end of rest
-      playBeep(660, 0.12); vibratePulse(150);
-
       // ✅ If this rest was triggered after a timed set, end on DONE
       if (btn.dataset.afterRestDone === "1") {
         btn.innerText = "✅ Done";
         btn.disabled = true; // lock it after completion
-        // keep bar full
-        setProgressBar(progressId, 1);
         // cleanup optional
         delete btn.dataset.afterRestDone;
         delete btn.dataset.rest;
@@ -1130,8 +823,6 @@ function startRestTimer(btn) {
       // normal behavior for non-timed rest timers
       btn.innerText = "Start 60s Rest";
       btn.disabled = false;
-      // reset bar
-      setProgressBar(progressId, 0);
       delete btn.dataset.rest;
     }
   }, 1000);
@@ -1141,24 +832,17 @@ window.startRestTimer = startRestTimer;
 // ==========================
 // WORK (COUNTDOWN) TIMER
 // ==========================
-function startCountdownTimer(btn, totalSeconds, label, restSeconds, progressId, coreName) {
+function startCountdownTimer(btn, totalSeconds, label, restSeconds) {
   let seconds = Number(totalSeconds) || 0;
   if (seconds <= 0) return;
 
-  const total = seconds;
   btn.disabled = true;
-
-  // Keep progress bar id on the button so rest timer can use it too
-  if (progressId) btn.dataset.progressId = progressId;
-
-  const ss = sessionSuffixForAbs(getViewAbsDay());
 
   const pad2 = (n) => String(n).padStart(2, "0");
   const render = () => {
     const m = Math.floor(seconds / 60);
     const s = seconds % 60;
     btn.innerText = `${label} ${m}:${pad2(s)}`;
-    setProgressBar(progressId, seconds / total);
   };
 
   render();
@@ -1168,22 +852,6 @@ function startCountdownTimer(btn, totalSeconds, label, restSeconds, progressId, 
 
     if (seconds <= 0) {
       clearInterval(interval);
-
-      // 🔊 beep at end of timer
-      playBeep(880, 0.12); vibratePulse(150);
-
-      // mark progress as finished
-      setProgressBar(progressId, 0);
-
-      // core tracking (only for timed core)
-      if (coreName && isCoreTimerExerciseName(coreName)) {
-        addCoreSeconds(ss, total);
-
-        // refresh any on-screen core indicators if present
-        if (typeof window.__updateCoreUiForToday === "function") {
-          window.__updateCoreUiForToday();
-        }
-      }
 
       // If restSeconds is provided, auto-start the existing rest timer on the same button
       const rest = Number(restSeconds) || 0;
@@ -1198,8 +866,6 @@ function startCountdownTimer(btn, totalSeconds, label, restSeconds, progressId, 
 
       btn.innerText = `✅ ${label} done`;
       btn.disabled = true;
-      // show full bar when complete
-      setProgressBar(progressId, 1);
       return;
     }
 
@@ -1207,34 +873,17 @@ function startCountdownTimer(btn, totalSeconds, label, restSeconds, progressId, 
   }, 1000);
 }
 window.startCountdownTimer = startCountdownTimer;
-window.startSidePlankSet = function startSidePlankSet(btn, secondsPerSide, setNum, progressId) {
+window.startSidePlankSet = function startSidePlankSet(btn, secondsPerSide, setNum) {
   const sec = Number(secondsPerSide) || 0;
   if (!sec) return;
 
   // Left side first
-  startCountdownTimer(
-    btn,
-    sec,
-    `Side Plank (Left) set ${setNum}`,
-    0,
-    progressId,
-    "Side Plank"
-  );
+  startCountdownTimer(btn, sec, `Side Plank (Left) set ${setNum}`, 0);
 
   // After left completes, immediately run right side (no rest between sides)
   setTimeout(() => {
-    // 🔔 switch sides beep
-    playBeep(1200,0.1); vibratePulse(120);
-
     // Right side then rest 60s AFTER the set (i.e., after both sides)
-    startCountdownTimer(
-      btn,
-      sec,
-      `Side Plank (Right) set ${setNum}`,
-      60,
-      progressId,
-      "Side Plank"
-    );
+    startCountdownTimer(btn, sec, `Side Plank (Right) set ${setNum}`, 60);
   }, (sec + 1) * 1000); // +1 to avoid timing edge cases
 };
 
@@ -1400,13 +1049,6 @@ function renderToday() {
   const needsRun = todayRequiresRun(day);
   const runDone = !needsRun ? true : isRunLoggedToday();
 
-  // Core tracking (timed core only)
-  const coreGoalSeconds = computeCoreGoalSecondsForDay(day, phase, microWeek);
-  const coreDoneSeconds = getCoreSecondsForDay(ss);
-  const corePct = coreGoalSeconds ? Math.min(100, Math.round((coreDoneSeconds / coreGoalSeconds) * 100)) : 0;
-  const coreIsComplete = markCoreCompleteIfDone(ss, coreGoalSeconds);
-  const coreStreak = getCoreCompleteStreak(30);
-
   let html = `
     <div class="card">
       <h2>Today</h2>
@@ -1421,24 +1063,6 @@ function renderToday() {
         <button onclick="startSessionTimer()" style="padding:10px 12px;cursor:pointer;">Start Session ⏱️</button>
         <button onclick="resetSessionTimer()" style="padding:10px 12px;cursor:pointer;">Reset</button>
       </div>
-
-      ${coreGoalSeconds ? `
-        <div style="border:1px solid #e5e5e5;border-radius:14px;padding:12px;margin:10px 0;">
-          <div style="display:flex;align-items:center;justify-content:space-between;gap:12px;flex-wrap:wrap;">
-            <div>
-              <div style="font-weight:800;">Core Endurance</div>
-              <div id="coreStatus" style="color:#666;font-size:13px;margin-top:2px;">
-                ${coreDoneSeconds}s / ${coreGoalSeconds}s (${corePct}%)
-                ${coreStreak ? ` • Streak: ${coreStreak} day${coreStreak===1?'':'s'}` : ``}
-              </div>
-            </div>
-            <div id="coreCompleteBadge" style="display:${(coreIsComplete ? 'inline-block' : 'none')};background:#111;color:#fff;padding:8px 12px;border-radius:999px;font-weight:900;">
-              🏁 Core Complete
-            </div>
-          </div>
-        </div>
-      ` : ``}
-
       <h3>${day.name}</h3>
   `;
 
@@ -1483,7 +1107,6 @@ if (isTimed) {
 
   for (let s = 1; s <= (adj.sets || 1); s++) {
   const isSidePlank = String(adj.name || "").toLowerCase().includes("side plank");
-  const progressId = `corepb_${ss}_${dayIndex}_${exIndex}_${s}`;
 
   html += `
     <div style="margin-bottom:10px;">
@@ -1492,17 +1115,13 @@ if (isTimed) {
       <button
         onclick="${
           isSidePlank
-            ? `startSidePlankSet(this, ${adj.timerSec}, ${s}, '${progressId}')`
-            : `startCountdownTimer(this, ${adj.timerSec}, '${adj.name} set ${s}', 60, '${progressId}', '${adj.name}')`
+            ? `startSidePlankSet(this, ${adj.timerSec}, ${s})`
+            : `startCountdownTimer(this, ${adj.timerSec}, '${adj.name} set ${s}', 60)`
         }"
         style="padding:10px 12px;cursor:pointer;"
       >
         Start ${durLabel} Timer
       </button>
-
-      <div id="${progressId}" style="height:8px;background:#eee;border-radius:999px;overflow:hidden;margin-top:6px;">
-        <div style="height:100%;width:0%;background:#111;border-radius:999px;"></div>
-      </div>
     </div>
   `;
 }
@@ -1602,36 +1221,6 @@ const repsKey   = `d${dayIndex}-e${exIndex}-s${s}-r-${ss}`;
   `;
 
 app.innerHTML = html;
-
-  // Allow timers to refresh core UI without a full re-render
-  window.__updateCoreUiForToday = function __updateCoreUiForToday() {
-    try {
-      const viewAbs = getViewAbsDay();
-      const dayIndex = viewAbs % getActiveProgram().length;
-      const day = getActiveProgram()[dayIndex];
-      const week = Math.floor(viewAbs / 7) + 1;
-      const phase = getPhaseForWeek(week);
-      const microWeek = getMicroWeek(week);
-      const ss = sessionSuffixForAbs(viewAbs);
-
-      const goal = computeCoreGoalSecondsForDay(day, phase, microWeek);
-      const done = getCoreSecondsForDay(ss);
-      const pct = goal ? Math.min(100, Math.round((done / goal) * 100)) : 0;
-
-      const status = document.getElementById("coreStatus");
-      if (status && goal) {
-        const streak = getCoreCompleteStreak(30);
-        status.textContent = `${done}s / ${goal}s (${pct}%)${streak ? ` • Streak: ${streak} day${streak===1?'':'s'}` : ``}`;
-      }
-
-      const badge = document.getElementById("coreCompleteBadge");
-      if (badge) {
-        const complete = markCoreCompleteIfDone(ss, goal);
-        badge.style.display = complete ? "inline-block" : "none";
-      }
-    } catch (e) {}
-  };
-  if (typeof window.__updateCoreUiForToday === "function") window.__updateCoreUiForToday();
   // keep session timer display live
   tickSessionTimer();
   const k = sessionKeyForToday();
@@ -2295,16 +1884,6 @@ function renderProgress() {
         <button id="retrySyncBtn" class="btn" style="white-space:nowrap;">Retry now</button>
       </div>
 
-      <div style="border:1px solid #e5e5e5;border-radius:12px;padding:12px;margin:12px 0;">
-        <h3 style="margin:0 0 8px 0;">Core Endurance</h3>
-        <div id="coreProgressSummary" style="color:#333;line-height:1.6;">
-          —
-        </div>
-        <div style="color:#666;font-size:13px;margin-top:6px;">
-          Counts only timed core (planks/copenhagen). Beeps + progress bars are in the Today tab timers.
-        </div>
-      </div>
-
       <div style="border:1px solid #ddd;border-radius:12px;padding:12px;margin:12px 0;">
         <h3 style="margin:0 0 8px 0;">Run Pace Trend</h3>
         <canvas id="runPaceChart" height="180"></canvas>
@@ -2324,17 +1903,6 @@ function renderProgress() {
   `;
 
   updatePendingSyncUI();
-
-  // Core endurance summary
-  const coreEl = document.getElementById("coreProgressSummary");
-  if (coreEl) {
-    const last7 = getCoreSecondsLastNDays(7);
-    const streak = getCoreCompleteStreak(30);
-    coreEl.innerHTML = `
-      <div><strong>Last 7 days:</strong> ${Math.round(last7 / 60)} min (${last7}s)</div>
-      <div><strong>Core Complete streak:</strong> ${streak} day${streak === 1 ? "" : "s"}</div>
-    `;
-  }
 
   const retryBtn = document.getElementById("retrySyncBtn");
   const retryStatus = document.getElementById("retrySyncStatus");
