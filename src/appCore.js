@@ -301,6 +301,8 @@ const PROGRAMS = {
     ],
   }
 
+  ],
+
   jeff: [
     {
       name: "Lower Body Strength",
@@ -357,7 +359,6 @@ const PROGRAMS = {
     }
   ],
 
-],
 };
 
 function getProgramForClient(clientId) {
