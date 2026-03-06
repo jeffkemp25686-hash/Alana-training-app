@@ -300,6 +300,63 @@ const PROGRAMS = {
       { name: "Copenhagen Plank (each side, seconds)", sets: 3, reps: 30, timerSec: 30 },
     ],
   }
+
+  jeff: [
+    {
+      name: "Lower Body Strength",
+      exercises: [
+        { name: "Hack Squat", sets: 4, reps: 10 },
+        { name: "Leg Press", sets: 4, reps: 12 },
+        { name: "Seated Hamstring Curl", sets: 4, reps: 12 },
+        { name: "Walking Lunges (Bodyweight)", sets: 3, reps: 20 },
+        { name: "Standing Calf Raise", sets: 4, reps: 15 },
+        { name: "Incline Treadmill Walk", sets: 1, reps: 10, timerSec: 600 }
+      ]
+    },
+    {
+      name: "Engine Builder",
+      exercises: [
+        { name: "Bike Intervals (3min moderate / 1min hard ×5)", sets: 1, reps: 1 },
+        { name: "Plank", sets: 3, reps: 60, timerSec: 60 },
+        { name: "Side Plank Left", sets: 3, reps: 45, timerSec: 45 },
+        { name: "Side Plank Right", sets: 3, reps: 45, timerSec: 45 },
+        { name: "Dead Bug", sets: 3, reps: 20 }
+      ]
+    },
+    {
+      name: "Upper Rehab Strength",
+      exercises: [
+        { name: "Machine Chest Press", sets: 4, reps: 12 },
+        { name: "Neutral Grip Lat Pulldown", sets: 4, reps: 12 },
+        { name: "Single Arm Cable Row", sets: 3, reps: 12 },
+        { name: "DB Curl (Left 2kg rehab)", sets: 3, reps: 15 },
+        { name: "Rope Triceps Pushdown", sets: 3, reps: 15 },
+        { name: "Face Pull", sets: 3, reps: 15 }
+      ]
+    },
+    {
+      name: "Conditioning + Core",
+      exercises: [
+        { name: "Incline Walk", sets: 1, reps: 20, timerSec: 1200 },
+        { name: "Bike", sets: 4, reps: 60, timerSec: 60 },
+        { name: "Goblet Squat", sets: 4, reps: 15 },
+        { name: "Step Ups", sets: 4, reps: 20 },
+        { name: "Dead Bug", sets: 4, reps: 20 },
+        { name: "Plank", sets: 3, reps: 60, timerSec: 60 }
+      ]
+    },
+    {
+      name: "Lower + Metabolic",
+      exercises: [
+        { name: "Hack Squat", sets: 4, reps: 8 },
+        { name: "Leg Press", sets: 4, reps: 12 },
+        { name: "Hamstring Curl", sets: 3, reps: 15 },
+        { name: "Leg Extension", sets: 3, reps: 15 },
+        { name: "Bike Intervals (30s hard / 90s easy ×10)", sets: 1, reps: 1 }
+      ]
+    }
+  ],
+
 ],
 };
 
