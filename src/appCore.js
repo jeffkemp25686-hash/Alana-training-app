@@ -226,20 +226,79 @@ const PROGRAMS = {
     exercises: [{ name: "RUN_LONG", sets: 1, reps: 1 }],
   },
 ],
-  blake: [
-    {
-    name: "Day 1 — Lower Max Force (Squat + Posterior)",
+  
+blake: [
+  {
+    name: "Chest + Biceps",
     exercises: [
-      { name: "Box Jump", sets: 5, reps: 3 },
-      { name: "Med Ball Scoop Toss", sets: 4, reps: 5 },
-      { name: "Back Squat", sets: 5, reps: 5 },
-      { name: "Romanian Deadlift", sets: 4, reps: 6 },
-      { name: "DB Walking Lunge (each leg)", sets: 4, reps: 10 },
-      { name: "Nordic Hamstring Curl", sets: 4, reps: 5 },
-      { name: "Reverse Hyper", sets: 3, reps: 12 },
-      { name: "Cable Chop (each side)", sets: 3, reps: 12 },
-      { name: "Farmer Carry (meters)", sets: 4, reps: 30 },
-    ],
+      { name: "Barbell Bench Press", sets: 5, reps: 5 },
+      { name: "Incline DB Press", sets: 4, reps: 8 },
+      { name: "Machine Chest Press", sets: 4, reps: 10 },
+      { name: "Cable Fly", sets: 3, reps: 12 },
+      { name: "Incline DB Curl", sets: 4, reps: 10 },
+      { name: "Barbell Curl", sets: 4, reps: 8 },
+      { name: "Hammer Curl", sets: 3, reps: 12 },
+      { name: "Preacher Curl Machine", sets: 3, reps: 12 }
+    ]
+  },
+  {
+    name: "Back + Triceps",
+    exercises: [
+      { name: "Barbell Row", sets: 5, reps: 5 },
+      { name: "Lat Pulldown", sets: 4, reps: 10 },
+      { name: "Seated Cable Row", sets: 4, reps: 10 },
+      { name: "Chest Supported Row", sets: 3, reps: 10 },
+      { name: "Rope Triceps Pushdown", sets: 4, reps: 12 },
+      { name: "Skull Crushers", sets: 4, reps: 10 },
+      { name: "Overhead Cable Triceps", sets: 3, reps: 12 },
+      { name: "Machine Dip", sets: 3, reps: 10 }
+    ]
+  },
+  {
+    name: "Legs (Heavy)",
+    exercises: [
+      { name: "Barbell Back Squat", sets: 5, reps: 5 },
+      { name: "Leg Press", sets: 4, reps: 8 },
+      { name: "Romanian Deadlift", sets: 4, reps: 8 },
+      { name: "Walking Lunges (each leg)", sets: 3, reps: 12 },
+      { name: "Seated Hamstring Curl", sets: 4, reps: 10 },
+      { name: "Standing Calf Raise", sets: 5, reps: 12 },
+      { name: "Leg Extension", sets: 3, reps: 12 }
+    ]
+  },
+  {
+    name: "Rest Day",
+    exercises: []
+  },
+  {
+    name: "Upper Body (Chest / Back / Arms / Shoulders)",
+    exercises: [
+      { name: "Barbell Bench Press", sets: 4, reps: 6 },
+      { name: "Incline DB Press", sets: 4, reps: 10 },
+      { name: "Lat Pulldown", sets: 4, reps: 10 },
+      { name: "Seated Cable Row", sets: 3, reps: 12 },
+      { name: "DB Shoulder Press", sets: 4, reps: 10 },
+      { name: "Lateral Raise", sets: 4, reps: 15 },
+      { name: "Barbell Curl", sets: 3, reps: 10 },
+      { name: "Rope Pushdown", sets: 3, reps: 12 }
+    ]
+  },
+  {
+    name: "Legs (Pump)",
+    exercises: [
+      { name: "Leg Press", sets: 4, reps: 12 },
+      { name: "Bulgarian Split Squat (each leg)", sets: 3, reps: 10 },
+      { name: "Leg Extension", sets: 4, reps: 15 },
+      { name: "Lying Hamstring Curl", sets: 4, reps: 12 },
+      { name: "Walking Lunges (each leg)", sets: 3, reps: 12 },
+      { name: "Seated Calf Raise", sets: 5, reps: 15 }
+    ]
+  },
+  {
+    name: "Rest / Game Day",
+    exercises: []
+  }
+],
   },
   {
     name: "Day 2 — Upper Max Force (Bench + Pull)",
@@ -1254,6 +1313,21 @@ function renderToday() {
 
   const needsRun = todayRequiresRun(day);
   const runDone = !needsRun ? true : isRunLoggedToday();
+
+  
+  if ((day.name || "").toLowerCase().includes("rest") || (day.name || "").toLowerCase().includes("game")) {
+    app.innerHTML = `
+      <div class="card">
+        <h2>${day.name}</h2>
+        <div style="padding:16px;background:#f7f7f7;border-radius:12px;border:1px solid #ddd;">
+          <strong>Recovery Day</strong><br><br>
+          No workout scheduled today.<br>
+          Focus on recovery, mobility, hydration and nutrition.
+        </div>
+      </div>
+    `;
+    return;
+  }
 
   let html = `
     <div class="card">
