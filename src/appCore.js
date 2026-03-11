@@ -960,7 +960,7 @@ function transitionToNextTimerState(nextState, prevState = null) {
     const prevLabel = String(prevState.label || "").toLowerCase();
     const nextLabel = String(nextState.label || "").toLowerCase();
 
-    if (prevLabel.includes("left") && nextLabel.includes("right")) {
+    if (prevLabel.includes("right") && nextLabel.includes("left")) {
       playTimerBeep("switch");
     } else {
       playTimerBeep("finish");
@@ -1351,14 +1351,15 @@ html += `
 
       for (let s = 1; s <= (adj.sets || 1); s++) {
   const isSidePlank = String(adj.name || "").toLowerCase().includes("side plank");
-  const isEachSide = /each side/i.test(String(adj.name || ""));
+  const isEachSide = !!adj.eachSide || /each side/i.test(String(adj.name || ""));
   const timerKey = `timed-${dayIndex}-${exIndex}-s${s}`;
   const timedLabel = JSON.stringify(
     `${adj.name} set ${s}${isSidePlank || isEachSide ? " (each side)" : ""}`
   );
+  const exerciseNameJson = JSON.stringify(String(adj.name || "Exercise"));
 
-  const timedOnclick = isSidePlank
-    ? `startSidePlankSet(this, ${adj.timerSec}, ${s})`
+  const timedOnclick = (isSidePlank || isEachSide)
+    ? `startEachSideSet(this, ${adj.timerSec}, ${s}, ${exerciseNameJson}, 60)`
     : `startCountdownTimer(this, ${adj.timerSec}, ${timedLabel}, 60)`;
 
   html += `
