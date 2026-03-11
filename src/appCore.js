@@ -1048,34 +1048,39 @@ function startCountdownTimer(btn, totalSeconds, label, restSeconds) {
 }
 window.startCountdownTimer = startCountdownTimer;
 
-window.startSidePlankSet = function startSidePlankSet(btn, secondsPerSide, setNum) {
+window.startEachSideSet = function startEachSideSet(btn, secondsPerSide, setNum, exerciseName = "Exercise", restSeconds = 60) {
   const sec = Number(secondsPerSide) || 0;
   if (!sec) return;
 
-  const timerKey = btn.dataset.timerKey || `sideplank-${setNum}-${Date.now()}`;
-  btn.dataset.defaultText = btn.dataset.defaultText || `Start ${Math.floor(sec / 60)}:${String(sec % 60).padStart(2, "0")} Timer`;
+  const baseLabel = String(exerciseName || "Exercise").trim();
+  const timerKey = btn.dataset.timerKey || `${baseLabel.toLowerCase().replace(/[^a-z0-9]+/g, "-")}-${setNum}-${Date.now()}`;
+  btn.dataset.defaultText = btn.dataset.defaultText || `Start ${Math.floor(sec / 60)}:${String(sec % 60).padStart(2, "0")} Each Side`;
 
   startManagedTimer({
     timerKey,
     kind: "work",
-    label: `Side Plank (Left) set ${setNum}`,
+    label: `${baseLabel} (Right) set ${setNum}`,
     durationSec: sec,
-    noticeText: `Side Plank set ${setNum} finished.`,
+    noticeText: `${baseLabel} set ${setNum} finished.`,
     next: {
       timerKey,
       kind: "work",
-      label: `Side Plank (Right) set ${setNum}`,
+      label: `${baseLabel} (Left) set ${setNum}`,
       durationSec: sec,
-      noticeText: `Side Plank set ${setNum} finished.`,
+      noticeText: `${baseLabel} set ${setNum} finished.`,
       next: {
         timerKey,
         kind: "rest",
         label: "Rest",
-        durationSec: 60,
+        durationSec: Number(restSeconds) || 60,
         noticeText: "Rest finished.",
       },
     },
   });
+};
+
+window.startSidePlankSet = function startSidePlankSet(btn, secondsPerSide, setNum) {
+  window.startEachSideSet(btn, secondsPerSide, setNum, "Side Plank", 60);
 };
 
 // ==========================
@@ -1241,7 +1246,7 @@ function renderToday() {
 
  const ss = sessionSuffixForAbs(viewAbs); // matches renderToday input suffix
 
- const isReadOnly = !isCoachMode() && viewAbs !== currentAbs;
+ const isReadOnly = false;
 
   const week = Math.floor(viewAbs / 7) + 1;
   const phase = getPhaseForWeek(week);
@@ -1253,7 +1258,6 @@ function renderToday() {
   let html = `
     <div class="card">
       <h2>Today</h2>
-      ${isReadOnly ? `<div style="background:#f7f7f7;border:1px solid #ddd;border-radius:12px;padding:10px;margin:10px 0;color:#333;">📅 Viewing another day (read-only). You can browse past/future, but you can’t edit or finish.</div>` : ``}
       <div style="color:#666;font-size:13px;margin-top:-6px;margin-bottom:10px;">
         ${getWeekDayLabel()} • Phase: <strong>${getPhaseLabel()}</strong>
       </div>
@@ -1354,9 +1358,9 @@ function renderToday() {
               data-timer-key="${timerKey}"
               data-default-text="Start ${durLabel} Timer"
               onclick="${
-                isSidePlank
-                  ? `startSidePlankSet(this, ${adj.timerSec}, ${s})`
-                  : `startCountdownTimer(this, ${adj.timerSec}, '${adj.name} set ${s}${isEachSide ? " (each side)" : ""}', 60)`
+                (isSidePlank || isEachSide)
+                  ? `startEachSideSet(this, ${adj.timerSec}, ${s}, ${JSON.stringify(adj.name)}, 60)`
+                  : `startCountdownTimer(this, ${adj.timerSec}, '${adj.name} set ${s}', 60)`
               }"
               style="padding:10px 12px;cursor:pointer;"
             >
@@ -1432,20 +1436,17 @@ function renderToday() {
 
  
 // Coach restore tools (rendered under Sync button) — safe string builder (no nested template literals)
-const coachRestoreToolsHTML =
-  (isReadOnly || isCoachMode())
-    ? [
-        '<div style="margin-top:10px; display:flex; flex-wrap:wrap; gap:10px;">',
-        '<button onclick="window.pullSetsFromCoachForViewedDay?.()" style="padding:10px 12px;cursor:pointer;">Pull from Coach ⬇️ (Sets)</button>',
-        isCoachMode()
-          ? '<button onclick="window.pullLastDaysFromCoach?.(7)" style="padding:10px 12px;cursor:pointer;">Pull last 7 days ⬇️</button>'
-          : '',
-        isCoachMode()
-          ? '<button onclick="window.overwriteViewedDayFromCoach?.()" style="padding:10px 12px;cursor:pointer;">Overwrite viewed day ⇄</button>'
-          : '',
-        '</div>',
-      ].join("")
-    : "";
+const coachRestoreToolsHTML = [
+  '<div style="margin-top:10px; display:flex; flex-wrap:wrap; gap:10px;">',
+  '<button onclick="window.pullSetsFromCoachForViewedDay?.()" style="padding:10px 12px;cursor:pointer;">Pull from Coach ⬇️ (Sets)</button>',
+  isCoachMode()
+    ? '<button onclick="window.pullLastDaysFromCoach?.(7)" style="padding:10px 12px;cursor:pointer;">Pull last 7 days ⬇️</button>'
+    : '',
+  isCoachMode()
+    ? '<button onclick="window.overwriteViewedDayFromCoach?.()" style="padding:10px 12px;cursor:pointer;">Overwrite viewed day ⇄</button>'
+    : '',
+  '</div>',
+].join("");
 
 html += `
       <button onclick="syncToCoach()" style="padding:10px 12px;cursor:pointer;">
@@ -1458,17 +1459,13 @@ html += `
         id="finishBtn"
         onclick="finishWorkout()"
         style="padding:10px 12px;cursor:pointer;margin-top:10px;"
-        ${(isReadOnly || !runDone) ? "disabled" : ""}
+        ${(!runDone) ? "disabled" : ""}
       >
         Finish Workout ✅
       </button>
 
       <p id="finishHint" style="color:${runDone ? "#2e7d32" : "#b26a00"}; margin-top:8px;">
-        ${
-          isReadOnly
-            ? "🔒 Read-only past day (can re-sync only)."
-            : (runDone ? "✅ Ready to finish." : "🔒 Finish locked until today’s run is logged.")
-        }
+${runDone ? "✅ Ready to finish." : "🔒 Finish locked until today’s run is logged."}
       </p>
 
       <p style="color:green;">✓ Auto saved</p>
@@ -1753,7 +1750,15 @@ window.finishWorkout = async function finishWorkout() {
     console.warn("Sync failed — queued instead");
   }
 
-  window.nextDay();
+  const currentAbs = getAbsDay();
+  if (viewAbs === currentAbs) {
+    window.nextDay();
+    return;
+  }
+
+  const nextViewedDay = Math.min(viewAbs + 1, currentAbs);
+  setViewAbsDay(nextViewedDay);
+  renderToday();
 };
 
 
