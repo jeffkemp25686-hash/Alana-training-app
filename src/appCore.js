@@ -1316,19 +1316,20 @@ function renderToday() {
 
       for (let b = 1; b <= blocks; b++) {
         const timerKey = `interval-${dayIndex}-${exIndex}-b${b}`;
-        html += `
-          <div style="margin-bottom:10px;">
-            <div style="color:#666;font-size:13px;">Block ${b}</div>
-            <button
-              data-timer-key="${timerKey}"
-              data-default-text="Start Block ${b} (${formatDurationLabel(blockSeconds)})"
-              onclick="startCountdownTimer(this, ${blockSeconds}, '${adj.name} Block ${b}', ${restAfterBlockSec})"
-              style="padding:10px 12px;cursor:pointer;"
-            >
-              Start Block ${b} (${formatDurationLabel(blockSeconds)})
-            </button>
-          </div>
-        `;
+const blockLabel = JSON.stringify(`${adj.name} Block ${b}`);
+html += `
+  <div style="margin-bottom:10px;">
+    <div style="color:#666;font-size:13px;">Block ${b}</div>
+    <button
+      data-timer-key="${timerKey}"
+      data-default-text="Start Block ${b} (${formatDurationLabel(blockSeconds)})"
+      onclick='startCountdownTimer(this, ${blockSeconds}, ${blockLabel}, ${restAfterBlockSec})'
+      style="padding:10px 12px;cursor:pointer;"
+    >
+      Start Block ${b} (${formatDurationLabel(blockSeconds)})
+    </button>
+  </div>
+`;
       }
 
       html += `<hr>`;
@@ -1349,26 +1350,32 @@ function renderToday() {
       `;
 
       for (let s = 1; s <= (adj.sets || 1); s++) {
-        const timerKey = `timed-${dayIndex}-${exIndex}-s${s}`;
-        html += `
-          <div style="margin-bottom:10px;">
-            <div style="color:#666;font-size:13px;">Set ${s}${isSidePlank || isEachSide ? " (each side)" : ""}</div>
+  const isSidePlank = String(adj.name || "").toLowerCase().includes("side plank");
+  const isEachSide = /each side/i.test(String(adj.name || ""));
+  const timerKey = `timed-${dayIndex}-${exIndex}-s${s}`;
+  const timedLabel = JSON.stringify(
+    `${adj.name} set ${s}${isSidePlank || isEachSide ? " (each side)" : ""}`
+  );
 
-            <button
-              data-timer-key="${timerKey}"
-              data-default-text="Start ${durLabel} Timer"
-              onclick="${
-                (isSidePlank || isEachSide)
-                  ? `startEachSideSet(this, ${adj.timerSec}, ${s}, ${JSON.stringify(adj.name)}, 60)`
-                  : `startCountdownTimer(this, ${adj.timerSec}, '${adj.name} set ${s}', 60)`
-              }"
-              style="padding:10px 12px;cursor:pointer;"
-            >
-              Start ${durLabel} Timer
-            </button>
-          </div>
-        `;
-      }
+  const timedOnclick = isSidePlank
+    ? `startSidePlankSet(this, ${adj.timerSec}, ${s})`
+    : `startCountdownTimer(this, ${adj.timerSec}, ${timedLabel}, 60)`;
+
+  html += `
+    <div style="margin-bottom:10px;">
+      <div style="color:#666;font-size:13px;">Set ${s}${isSidePlank || isEachSide ? " (each side)" : ""}</div>
+
+      <button
+        data-timer-key="${timerKey}"
+        data-default-text="Start ${durLabel} Timer"
+        onclick='${timedOnclick}'
+        style="padding:10px 12px;cursor:pointer;"
+      >
+        Start ${durLabel} Timer
+      </button>
+    </div>
+  `;
+}
 
       html += `<hr>`;
       return;
