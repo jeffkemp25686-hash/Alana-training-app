@@ -318,23 +318,10 @@ const PROGRAMS = {
     {
       name: "Engine Builder",
       exercises: [
-        {
-          name: "Bike Intervals",
-          type: "interval",
-          sets: 3,
-          reps: 1,
-          blockDurationSec: 1200,
-          restBetweenBlocksSec: 60,
-          intervalSummary: "3 blocks total. Each block = 5 rounds of 3 min moderate + 1 min hard.",
-          intervalDetails: [
-            "Complete 3 blocks total",
-            "Each block: 5 rounds of 3 min moderate + 1 min hard",
-            "Block length: 20 minutes",
-            "Rest 60s between blocks",
-            "Total work time: 60 minutes"
-          ]
-        },
-        { name: "Pallof Press Hold", sets: 3, reps: 30, timerSec: 30 },
+        { name: "Bike Intervals (3min moderate / 1min hard ×5)", sets: 1, reps: 1 },
+        { name: "Plank", sets: 3, reps: 60, timerSec: 60 },
+        { name: "Side Plank Left", sets: 3, reps: 45, timerSec: 45 },
+        { name: "Side Plank Right", sets: 3, reps: 45, timerSec: 45 },
         { name: "Dead Bug", sets: 3, reps: 20 }
       ]
     },
@@ -357,7 +344,7 @@ const PROGRAMS = {
         { name: "Goblet Squat", sets: 4, reps: 15 },
         { name: "Step Ups", sets: 4, reps: 20 },
         { name: "Dead Bug", sets: 4, reps: 20 },
-        { name: "Pallof Press Hold", sets: 3, reps: 30, timerSec: 30 }
+        { name: "Plank", sets: 3, reps: 60, timerSec: 60 }
       ]
     },
     {
@@ -367,20 +354,7 @@ const PROGRAMS = {
         { name: "Leg Press", sets: 4, reps: 12 },
         { name: "Hamstring Curl", sets: 3, reps: 15 },
         { name: "Leg Extension", sets: 3, reps: 15 },
-        {
-          name: "Bike Intervals",
-          type: "interval",
-          sets: 1,
-          reps: 1,
-          blockDurationSec: 1200,
-          restBetweenBlocksSec: 0,
-          intervalSummary: "1 block total. Complete 10 rounds of 30s hard + 90s easy.",
-          intervalDetails: [
-            "Complete 1 block total",
-            "10 rounds of 30s hard + 90s easy",
-            "Block length: 20 minutes"
-          ]
-        }
+        { name: "Bike Intervals (30s hard / 90s easy ×10)", sets: 1, reps: 1 }
       ]
     }
   ],
@@ -802,291 +776,116 @@ window.startSessionTimer = startSessionTimer;
 window.resetSessionTimer = resetSessionTimer;
 
 // ==========================
-// PERSISTENT TIMERS (survive app background / reopen)
-// ==========================
-const ACTIVE_TIMER_KEY = "activeTrainingTimer";
-const LAST_TIMER_NOTICE_KEY = "lastTrainingTimerNotice";
-
-let __persistentTimerInterval = null;
-
-function timerStatusStorageKey(timerKey) {
-  return `timerStatus_${timerKey}`;
-}
-
-function getActiveTimerState() {
-  try {
-    return JSON.parse(localStorage.getItem(ACTIVE_TIMER_KEY) || "null");
-  } catch {
-    return null;
-  }
-}
-
-function setActiveTimerState(state) {
-  localStorage.setItem(ACTIVE_TIMER_KEY, JSON.stringify(state));
-}
-
-function clearActiveTimerState() {
-  localStorage.removeItem(ACTIVE_TIMER_KEY);
-}
-
-function getTimerStatus(timerKey) {
-  try {
-    return JSON.parse(localStorage.getItem(timerStatusStorageKey(timerKey)) || "null");
-  } catch {
-    return null;
-  }
-}
-
-function setTimerStatus(timerKey, status) {
-  localStorage.setItem(timerStatusStorageKey(timerKey), JSON.stringify(status));
-}
-
-function clearTimerStatus(timerKey) {
-  localStorage.removeItem(timerStatusStorageKey(timerKey));
-}
-
-function formatTimerClock(sec) {
-  const safe = Math.max(0, Number(sec) || 0);
-  const m = Math.floor(safe / 60);
-  const s = safe % 60;
-  return `${m}:${String(s).padStart(2, "0")}`;
-}
-
-function getTimerSecondsRemaining(endAt) {
-  return Math.max(0, Math.ceil((Number(endAt) - Date.now()) / 1000));
-}
-
-function buildTimerState(overrides) {
-  const seconds = Number(overrides.seconds) || 0;
-  return {
-    ...overrides,
-    seconds,
-    endAt: Date.now() + seconds * 1000,
-  };
-}
-
-function transitionToNextTimerState(nextState) {
-  if (!nextState) return;
-  const built = buildTimerState(nextState);
-  setActiveTimerState(built);
-}
-
-function finishTimerState(state) {
-  if (!state) return;
-
-  if (state.onCompleteStorageKey) {
-    localStorage.setItem(state.onCompleteStorageKey, state.onCompleteStorageValue || "1");
-  }
-
-  if (state.keepDone) {
-    setTimerStatus(state.timerKey, {
-      disabled: true,
-      text: state.completeText || "✅ Done",
-    });
-  } else {
-    clearTimerStatus(state.timerKey);
-  }
-
-  localStorage.setItem(LAST_TIMER_NOTICE_KEY, state.noticeText || `${state.label} finished.`);
-  clearActiveTimerState();
-}
-
-function updatePersistentTimerUI() {
-  const state = getActiveTimerState();
-  const statusEl = document.getElementById("activeTimerStatus");
-  const notice = localStorage.getItem(LAST_TIMER_NOTICE_KEY) || "";
-
-  document.querySelectorAll("[data-timer-key]").forEach((btn) => {
-    const timerKey = btn.dataset.timerKey;
-    const defaultLabel = btn.dataset.defaultLabel || btn.textContent || "Start Timer";
-    const status = getTimerStatus(timerKey);
-
-    if (state && state.timerKey === timerKey) {
-      const remaining = getTimerSecondsRemaining(state.endAt);
-      btn.disabled = true;
-      btn.textContent = state.kind === "rest"
-        ? `Rest ${remaining}s`
-        : `${state.label} ${formatTimerClock(remaining)}`;
-      return;
-    }
-
-    if (status?.disabled) {
-      btn.disabled = true;
-      btn.textContent = status.text || "✅ Done";
-      return;
-    }
-
-    btn.disabled = false;
-    btn.textContent = defaultLabel;
-  });
-
-  if (!statusEl) return;
-
-  if (state) {
-    const remaining = getTimerSecondsRemaining(state.endAt);
-    const body = state.kind === "rest"
-      ? `Rest ${remaining}s remaining`
-      : `${state.label} • ${formatTimerClock(remaining)} remaining`;
-
-    statusEl.innerHTML = `
-      <div style="background:#eef6ff;border:1px solid #b9d7ff;border-radius:12px;padding:10px 12px;margin:0 0 12px 0;color:#163d6b;">
-        ⏱️ <strong>Active timer:</strong> ${body}
-      </div>
-    `;
-    return;
-  }
-
-  if (notice) {
-    statusEl.innerHTML = `
-      <div style="background:#f3fff5;border:1px solid #b8e0c2;border-radius:12px;padding:10px 12px;margin:0 0 12px 0;color:#1c5c2a;">
-        ✅ ${notice}
-      </div>
-    `;
-    localStorage.removeItem(LAST_TIMER_NOTICE_KEY);
-    return;
-  }
-
-  statusEl.innerHTML = "";
-}
-
-function tickPersistentTimer() {
-  const state = getActiveTimerState();
-
-  if (!state) {
-    if (__persistentTimerInterval) {
-      clearInterval(__persistentTimerInterval);
-      __persistentTimerInterval = null;
-    }
-    updatePersistentTimerUI();
-    return;
-  }
-
-  const remaining = getTimerSecondsRemaining(state.endAt);
-  if (remaining > 0) {
-    updatePersistentTimerUI();
-    return;
-  }
-
-  if (state.next) {
-    transitionToNextTimerState(state.next);
-    updatePersistentTimerUI();
-    return;
-  }
-
-  finishTimerState(state);
-  updatePersistentTimerUI();
-}
-
-function ensurePersistentTimerTicker() {
-  if (__persistentTimerInterval) clearInterval(__persistentTimerInterval);
-  updatePersistentTimerUI();
-
-  if (getActiveTimerState()) {
-    __persistentTimerInterval = setInterval(tickPersistentTimer, 500);
-  }
-}
-
-function startManagedTimer(state) {
-  if (!state?.timerKey) return;
-  clearTimerStatus(state.timerKey);
-  localStorage.removeItem(LAST_TIMER_NOTICE_KEY);
-  transitionToNextTimerState(state);
-  ensurePersistentTimerTicker();
-}
-
-// ==========================
 // REST TIMER
 // ==========================
-function startRestTimer(btn) {
-  const seconds = Number(btn.dataset.rest) || 60;
-  const timerKey = btn.dataset.timerKey || `rest_${sessionSuffixForAbs(getViewAbsDay())}`;
 
-  startManagedTimer({
-    timerKey,
-    kind: "rest",
-    label: "Rest",
-    seconds,
-    defaultLabel: btn.dataset.defaultLabel || `Start ${seconds}s Rest`,
-    keepDone: false,
-    noticeText: `Rest ${seconds}s finished.`,
-  });
+// ==========================
+// SIMPLE TIMER BEEP
+// ==========================
+function playBeep(freq=880,duration=150){
+  try{
+    const ctx = new (window.AudioContext||window.webkitAudioContext)();
+    const osc = ctx.createOscillator();
+    const gain = ctx.createGain();
+    osc.frequency.value = freq;
+    osc.type="sine";
+    osc.connect(gain);
+    gain.connect(ctx.destination);
+    osc.start();
+    gain.gain.setValueAtTime(0.2,ctx.currentTime);
+    gain.gain.exponentialRampToValueAtTime(0.0001,ctx.currentTime + duration/1000);
+    osc.stop(ctx.currentTime + duration/1000);
+  }catch(e){}
+}
+
+function startRestTimer(btn) {
+  // ✅ Use per-button rest if provided, otherwise default 60
+  let seconds = Number(btn.dataset.rest) || 60;
+
+  btn.disabled = true;
+
+  const interval = setInterval(() => {
+    btn.innerText = `Rest ${seconds}s`;
+    seconds--;
+
+    if (seconds < 0) {
+      clearInterval(interval);
+
+      // ✅ If this rest was triggered after a timed set, end on DONE
+      if (btn.dataset.afterRestDone === "1") {
+        btn.innerText = "✅ Done";
+        btn.disabled = true; // lock it after completion
+        // cleanup optional
+        delete btn.dataset.afterRestDone;
+        delete btn.dataset.rest;
+        return;
+      }
+
+      // normal behavior for non-timed rest timers
+      playBeep(1000,180); btn.innerText = "Start 60s Rest";
+      btn.disabled = false;
+      delete btn.dataset.rest;
+    }
+  }, 1000);
 }
 window.startRestTimer = startRestTimer;
 
 // ==========================
 // WORK (COUNTDOWN) TIMER
 // ==========================
-function startCountdownTimer(btn, totalSeconds, label, restSeconds, options = {}) {
-  const seconds = Number(totalSeconds) || 0;
+function startCountdownTimer(btn, totalSeconds, label, restSeconds) {
+  let seconds = Number(totalSeconds) || 0;
   if (seconds <= 0) return;
 
-  const timerKey = options.timerKey || btn.dataset.timerKey || `timer_${sessionSuffixForAbs(getViewAbsDay())}`;
-  const defaultLabel = options.defaultLabel || btn.dataset.defaultLabel || "Start Timer";
-  const completeText = options.completeText || `✅ ${label} done`;
+  btn.disabled = true;
 
-  const finalState = {
-    timerKey,
-    kind: "countdown",
-    label,
-    seconds,
-    defaultLabel,
-    keepDone: options.keepDone !== false,
-    completeText,
-    noticeText: options.noticeText || `${label} finished.`,
-    onCompleteStorageKey: options.onCompleteStorageKey,
-    onCompleteStorageValue: options.onCompleteStorageValue || "1",
+  const pad2 = (n) => String(n).padStart(2, "0");
+  const render = () => {
+    const m = Math.floor(seconds / 60);
+    const s = seconds % 60;
+    btn.innerText = `${label} ${m}:${pad2(s)}`;
   };
 
-  const rest = Number(restSeconds) || 0;
-  if (rest > 0) {
-    finalState.next = {
-      timerKey,
-      kind: "rest",
-      label: "Rest",
-      seconds: rest,
-      defaultLabel,
-      keepDone: options.keepDone !== false,
-      completeText,
-      noticeText: options.noticeText || `${label} complete.`,
-      onCompleteStorageKey: options.onCompleteStorageKey,
-      onCompleteStorageValue: options.onCompleteStorageValue || "1",
-    };
-  }
+  render();
 
-  startManagedTimer(finalState);
+  const interval = setInterval(() => {
+    seconds--;
+
+    if (seconds <= 0) {
+      clearInterval(interval);
+
+      // If restSeconds is provided, auto-start the existing rest timer on the same button
+      const rest = Number(restSeconds) || 0;
+      if (rest > 0 && typeof window.startRestTimer === "function") {
+        btn.disabled = false;                 // rest timer expects enabled
+        btn.dataset.rest = String(rest);      // ✅ rest duration per button
+        btn.dataset.afterRestDone = "1";      // ✅ tell rest timer to finish on DONE
+        btn.innerText = `Rest ${rest}s`;      // brief handoff text
+        window.startRestTimer(btn);           // 🚀 auto-start rest
+        return;
+      }
+
+      playBeep(900,200); btn.innerText = `✅ ${label} done`;
+      btn.disabled = true;
+      return;
+    }
+
+    render();
+  }, 1000);
 }
 window.startCountdownTimer = startCountdownTimer;
 window.startSidePlankSet = function startSidePlankSet(btn, secondsPerSide, setNum) {
   const sec = Number(secondsPerSide) || 0;
   if (!sec) return;
 
-  const timerKey = btn.dataset.timerKey || `sideplank_${sessionSuffixForAbs(getViewAbsDay())}_${setNum}`;
-  const defaultLabel = btn.dataset.defaultLabel || `Start ${formatTimerClock(sec)} Timer`;
+  // Left side first
+  startCountdownTimer(btn, sec, `Side Plank (Left) set ${setNum}`, 0);
 
-  startManagedTimer({
-    timerKey,
-    kind: "countdown",
-    label: `Side Plank (Left) set ${setNum}`,
-    seconds: sec,
-    defaultLabel,
-    next: {
-      timerKey,
-      kind: "countdown",
-      label: `Side Plank (Right) set ${setNum}`,
-      seconds: sec,
-      defaultLabel,
-      next: {
-        timerKey,
-        kind: "rest",
-        label: "Rest",
-        seconds: 60,
-        defaultLabel,
-        keepDone: true,
-        completeText: "✅ Done",
-        noticeText: `Side plank set ${setNum} complete.`,
-      },
-    },
-  });
+  // After left completes, immediately run right side (no rest between sides)
+  setTimeout(() => {
+    // Right side then rest 60s AFTER the set (i.e., after both sides)
+    playBeep(750,120); playBeep(750,120); startCountdownTimer(btn, sec, `Side Plank (Right) set ${setNum}`, 60);
+  }, (sec + 1) * 1000); // +1 to avoid timing edge cases
 };
 
 // ==========================
@@ -1230,60 +1029,6 @@ function getRunPrescription(dayName) {
   };
 }
 
-function isIntervalExercise(ex) {
-  return String(ex?.type || "").toLowerCase() === "interval";
-}
-
-function renderIntervalExercise(ex, exIndex, dayIndex, ss, isReadOnly) {
-  const totalBlocks = Number(ex.sets) || 1;
-  const blockDurationSec = Number(ex.blockDurationSec) || 0;
-  const blockRestSec = Number(ex.restBetweenBlocksSec) || 0;
-  const details = Array.isArray(ex.intervalDetails) ? ex.intervalDetails : [];
-  const summary = ex.intervalSummary || "Complete the full interval block as written.";
-  const durationLabel = formatTimerClock(blockDurationSec);
-
-  let out = `
-    <h4>${ex.name}</h4>
-    <div style="background:#f7f7f7;border:1px solid #ddd;border-radius:12px;padding:12px;margin:8px 0 12px 0;">
-      <div style="font-weight:700;margin-bottom:6px;">${summary}</div>
-      ${details.length ? `<ul style="margin:0 0 0 18px;padding:0;line-height:1.6;color:#333;">${details.map((line) => `<li>${line}</li>`).join("")}</ul>` : ""}
-    </div>
-  `;
-
-  for (let s = 1; s <= totalBlocks; s++) {
-    const weightKey = `d${dayIndex}-e${exIndex}-s${s}-w-${ss}`;
-    const repsKey = `d${dayIndex}-e${exIndex}-s${s}-r-${ss}`;
-    const timerKey = `interval-${ss}-${exIndex}-${s}`;
-    const blockDone = (localStorage.getItem(repsKey) || "") === "1";
-    const defaultLabel = `Start Block ${s} Timer`;
-
-    out += `
-      <div style="margin-bottom:12px;">
-        <div style="color:#666;font-size:13px;margin-bottom:6px;">Block ${s} of ${totalBlocks} • ${durationLabel}${blockRestSec ? ` • then ${blockRestSec}s rest` : ""}</div>
-        <button
-          data-timer-key="${timerKey}"
-          data-default-label="${defaultLabel}"
-          onclick="startCountdownTimer(this, ${blockDurationSec}, '${ex.name.replace(/'/g, "\'")} block ${s}', ${blockRestSec}, { keepDone: true, completeText: '✅ Block ${s} complete', noticeText: '${ex.name.replace(/'/g, "\'")} block ${s} complete.', onCompleteStorageKey: '${repsKey}', onCompleteStorageValue: '1' })"
-          style="padding:10px 12px;cursor:pointer;"
-          ${isReadOnly ? "disabled" : ""}
-        >
-          ${blockDone ? `✅ Block ${s} complete` : defaultLabel}
-        </button>
-        <button
-          onclick="localStorage.removeItem('${weightKey}'); localStorage.removeItem('${repsKey}'); localStorage.removeItem('timerStatus_${timerKey}'); renderToday();"
-          style="padding:10px 12px;cursor:pointer;margin-left:8px;"
-          ${isReadOnly ? "disabled" : ""}
-        >
-          Reset Block
-        </button>
-      </div>
-    `;
-  }
-
-  out += `<hr>`;
-  return out;
-}
-
 // ==========================
 // TODAY TAB
 // ==========================
@@ -1315,7 +1060,6 @@ function renderToday() {
       ${(typeof getHyroxReadyPct === "function" && getHyroxReadyPct() != null) ? ('<div style="background:#111;color:#fff;padding:8px 12px;border-radius:20px;display:inline-block;font-weight:800;margin:8px 0 10px 0;">HYROX READY: ' + getHyroxReadyPct() + '%</div>') : ''}
 
       <div id="sessionTimer" style="margin:8px 0 12px 0;font-weight:800;">Session: 0:00 / 90:00</div>
-      <div id="activeTimerStatus"></div>
       <div style="display:flex;gap:10px;flex-wrap:wrap;margin-bottom:10px;">
         <button onclick="startSessionTimer()" style="padding:10px 12px;cursor:pointer;">Start Session ⏱️</button>
         <button onclick="resetSessionTimer()" style="padding:10px 12px;cursor:pointer;">Reset</button>
@@ -1350,11 +1094,6 @@ function renderToday() {
 
     if (exName === "HYROX_SESSION") return;
     if (exName.toUpperCase().startsWith("RUN_")) return;
-
-    if (isIntervalExercise(adj)) {
-      html += renderIntervalExercise(adj, exIndex, dayIndex, ss, isReadOnly);
-      return;
-    }
 // ---- TIMED EXERCISE BLOCK (e.g., Plank) ----
 const isTimed = !!adj.timerSec;
 
@@ -1375,12 +1114,10 @@ if (isTimed) {
       <div style="color:#666;font-size:13px;">Set ${s}${isSidePlank ? " (each side)" : ""}</div>
 
       <button
-        data-timer-key="timed-${ss}-${exIndex}-${s}"
-        data-default-label="Start ${durLabel} Timer"
         onclick="${
           isSidePlank
             ? `startSidePlankSet(this, ${adj.timerSec}, ${s})`
-            : `startCountdownTimer(this, ${adj.timerSec}, '${adj.name} set ${s}', 60, { keepDone: true, completeText: '✅ Done', noticeText: '${adj.name} set ${s} complete.' })`
+            : `startCountdownTimer(this, ${adj.timerSec}, '${adj.name} set ${s}', 60)`
         }"
         style="padding:10px 12px;cursor:pointer;"
       >
@@ -1440,7 +1177,7 @@ const repsKey   = `d${dayIndex}-e${exIndex}-s${s}-r-${ss}`;
     }
 
     html += `
-      <button data-rest="${restSec}" data-timer-key="rest-${ss}-${exIndex}" data-default-label="Start ${restSec}s Rest" onclick="startRestTimer(this)" style="padding:10px 12px;cursor:pointer;margin-bottom:10px;">
+      <button data-rest="${restSec}" onclick="startRestTimer(this)" style="padding:10px 12px;cursor:pointer;margin-bottom:10px;">
         Start ${restSec}s Rest
       </button>
       <hr>
@@ -1497,7 +1234,6 @@ app.innerHTML = html;
   tickSessionTimer();
   const k = sessionKeyForToday();
   if (localStorage.getItem(k)) startSessionTimer();
-  ensurePersistentTimerTicker();
 }
 
 // ==========================
