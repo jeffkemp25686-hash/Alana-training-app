@@ -226,7 +226,7 @@ const PROGRAMS = {
     exercises: [{ name: "RUN_LONG", sets: 1, reps: 1 }],
   },
 ],
-  
+
 blake: [
   {
     name: "Chest + Biceps",
@@ -234,7 +234,8 @@ blake: [
       { name: "Barbell Bench Press", sets: 5, reps: 5 },
       { name: "Incline DB Press", sets: 4, reps: 8 },
       { name: "Machine Chest Press", sets: 4, reps: 10 },
-      { name: "Cable Fly", sets: 3, reps: 12 },
+      { name: "Cable Fly", sets: 4, reps: 12 },
+      { name: "Incline Barbell Press", sets: 4, reps: 8 },
       { name: "Incline DB Curl", sets: 4, reps: 10 },
       { name: "Barbell Curl", sets: 4, reps: 8 },
       { name: "Hammer Curl", sets: 3, reps: 12 },
@@ -247,7 +248,8 @@ blake: [
       { name: "Barbell Row", sets: 5, reps: 5 },
       { name: "Lat Pulldown", sets: 4, reps: 10 },
       { name: "Seated Cable Row", sets: 4, reps: 10 },
-      { name: "Chest Supported Row", sets: 3, reps: 10 },
+      { name: "Chest Supported Row", sets: 4, reps: 10 },
+      { name: "Close Grip Pulldown", sets: 3, reps: 12 },
       { name: "Rope Triceps Pushdown", sets: 4, reps: 12 },
       { name: "Skull Crushers", sets: 4, reps: 10 },
       { name: "Overhead Cable Triceps", sets: 3, reps: 12 },
@@ -262,8 +264,9 @@ blake: [
       { name: "Romanian Deadlift", sets: 4, reps: 8 },
       { name: "Walking Lunges (each leg)", sets: 3, reps: 12 },
       { name: "Seated Hamstring Curl", sets: 4, reps: 10 },
+      { name: "Leg Extension", sets: 4, reps: 12 },
       { name: "Standing Calf Raise", sets: 5, reps: 12 },
-      { name: "Leg Extension", sets: 3, reps: 12 }
+      { name: "Seated Calf Raise", sets: 4, reps: 15 }
     ]
   },
   {
@@ -276,9 +279,10 @@ blake: [
       { name: "Barbell Bench Press", sets: 4, reps: 6 },
       { name: "Incline DB Press", sets: 4, reps: 10 },
       { name: "Lat Pulldown", sets: 4, reps: 10 },
-      { name: "Seated Cable Row", sets: 3, reps: 12 },
+      { name: "Seated Cable Row", sets: 4, reps: 12 },
       { name: "DB Shoulder Press", sets: 4, reps: 10 },
       { name: "Lateral Raise", sets: 4, reps: 15 },
+      { name: "Rear Delt Fly", sets: 3, reps: 15 },
       { name: "Barbell Curl", sets: 3, reps: 10 },
       { name: "Rope Pushdown", sets: 3, reps: 12 }
     ]
@@ -291,6 +295,7 @@ blake: [
       { name: "Leg Extension", sets: 4, reps: 15 },
       { name: "Lying Hamstring Curl", sets: 4, reps: 12 },
       { name: "Walking Lunges (each leg)", sets: 3, reps: 12 },
+      { name: "Hack Squat", sets: 3, reps: 12 },
       { name: "Seated Calf Raise", sets: 5, reps: 15 }
     ]
   },
@@ -299,68 +304,6 @@ blake: [
     exercises: []
   }
 ],
-  },
-  {
-    name: "Day 2 — Upper Max Force (Bench + Pull)",
-    exercises: [
-      { name: "Med Ball Chest Pass", sets: 5, reps: 5 },
-      { name: "Bench Press", sets: 5, reps: 5 },
-      { name: "Weighted Chin Up", sets: 5, reps: 5 },
-      { name: "Incline DB Press", sets: 4, reps: 8 },
-      { name: "Chest Supported Row", sets: 4, reps: 10 },
-      { name: "Landmine Press", sets: 3, reps: 10 },
-      { name: "Face Pull", sets: 3, reps: 15 },
-      { name: "Neck Flexion", sets: 3, reps: 15 },
-      { name: "Neck Extension", sets: 3, reps: 15 },
-      { name: "Neck Lateral (each side)", sets: 3, reps: 15 },
-      { name: "Pallof Press (each side)", sets: 3, reps: 12 },
-    ],
-  },
-  {
-    name: "Day 3 — Power + Speed Strength",
-    exercises: [
-      { name: "Hang Power Clean", sets: 6, reps: 3 },
-      { name: "Push Press", sets: 5, reps: 3 },
-      { name: "Trap Bar Jump", sets: 5, reps: 3 },
-      { name: "Speed Squat (60% 1RM)", sets: 6, reps: 2 },
-      { name: "Hip Thrust (explosive)", sets: 4, reps: 6 },
-      { name: "Hamstring Curl", sets: 3, reps: 10 },
-      { name: "Rotational Med Ball Throw (each side)", sets: 5, reps: 4 },
-      { name: "Sled Drag (meters)", sets: 4, reps: 25 },
-    ],
-  },
-  {
-    name: "Day 4 — Hypertrophy / Armor Build",
-    exercises: [
-      { name: "DB Bench Press", sets: 4, reps: 12 },
-      { name: "Pull Ups (AMRAP)", sets: 4, reps: 8 },
-      { name: "Seated Cable Row", sets: 4, reps: 12 },
-      { name: "Lateral Raise", sets: 4, reps: 15 },
-      { name: "Hack Squat", sets: 4, reps: 12 },
-      { name: "Leg Curl", sets: 4, reps: 12 },
-      { name: "Calf Raise", sets: 5, reps: 15 },
-      { name: "Hanging Leg Raise", sets: 4, reps: 12 },
-      { name: "Back Extension", sets: 4, reps: 15 },
-      { name: "Biceps Curl", sets: 3, reps: 12 },
-      { name: "Rope Triceps Pushdown", sets: 3, reps: 12 },
-    ],
-  },
-  {
-    name: "Day 5 — Total Body Power + Strongman",
-    exercises: [
-      { name: "Clean Pull", sets: 5, reps: 3 },
-      { name: "Plyo Push Up", sets: 5, reps: 5 },
-      { name: "Front Squat", sets: 4, reps: 4 },
-      { name: "Weighted Dips", sets: 4, reps: 6 },
-      { name: "Bulgarian Split Squat (each leg)", sets: 3, reps: 8 },
-      { name: "Sled Push (meters)", sets: 6, reps: 20 },
-      { name: "Sandbag Carry (meters)", sets: 5, reps: 30 },
-      { name: "Battle Ropes (seconds)", sets: 6, reps: 20, timerSec: 20 },
-      { name: "Copenhagen Plank (each side, seconds)", sets: 3, reps: 30, timerSec: 30 },
-    ],
-  }
-
-  ],
 
   jeff: [
     {
@@ -1019,7 +962,7 @@ function transitionToNextTimerState(nextState, prevState = null) {
     const prevLabel = String(prevState.label || "").toLowerCase();
     const nextLabel = String(nextState.label || "").toLowerCase();
 
-    if (prevLabel.includes("right") && nextLabel.includes("left")) {
+    if (prevLabel.includes("left") && nextLabel.includes("right")) {
       playTimerBeep("switch");
     } else {
       playTimerBeep("finish");
@@ -1314,21 +1257,6 @@ function renderToday() {
   const needsRun = todayRequiresRun(day);
   const runDone = !needsRun ? true : isRunLoggedToday();
 
-  
-  if ((day.name || "").toLowerCase().includes("rest") || (day.name || "").toLowerCase().includes("game")) {
-    app.innerHTML = `
-      <div class="card">
-        <h2>${day.name}</h2>
-        <div style="padding:16px;background:#f7f7f7;border-radius:12px;border:1px solid #ddd;">
-          <strong>Recovery Day</strong><br><br>
-          No workout scheduled today.<br>
-          Focus on recovery, mobility, hydration and nutrition.
-        </div>
-      </div>
-    `;
-    return;
-  }
-
   let html = `
     <div class="card">
       <h2>Today</h2>
@@ -1349,6 +1277,27 @@ function renderToday() {
   if (isHyroxDay(day)) {
     html += renderHyroxHtml({ ss, week, phase });
   }
+  const isRestDay = (day.name || "").toLowerCase().includes("rest") || (day.name || "").toLowerCase().includes("game");
+  if (isRestDay) {
+    app.innerHTML = `
+      <div class="card">
+        <h2>Today</h2>
+        <div style="color:#666;font-size:13px;margin-top:-6px;margin-bottom:10px;">
+          ${getWeekDayLabel()} • Phase: <strong>${getPhaseLabel()}</strong>
+        </div>
+        <h3>${day.name}</h3>
+        <div style="background:#f7f7f7;border:1px solid #ddd;border-radius:12px;padding:16px;margin:12px 0;">
+          <div style="font-weight:800;margin-bottom:6px;">Recovery Day</div>
+          <div style="color:#333;line-height:1.6;">
+            No workout scheduled today.<br>
+            Focus on recovery, mobility, hydration and nutrition.
+          </div>
+        </div>
+      </div>
+    `;
+    return;
+  }
+
   if (needsRun) {
     html += `
       <div style="background:#fff7e6;border:1px solid #f0c36d;border-radius:12px;padding:14px;margin:12px 0;">
@@ -1425,15 +1374,14 @@ html += `
 
       for (let s = 1; s <= (adj.sets || 1); s++) {
   const isSidePlank = String(adj.name || "").toLowerCase().includes("side plank");
-  const isEachSide = !!adj.eachSide || /each side/i.test(String(adj.name || ""));
+  const isEachSide = /each side/i.test(String(adj.name || ""));
   const timerKey = `timed-${dayIndex}-${exIndex}-s${s}`;
   const timedLabel = JSON.stringify(
     `${adj.name} set ${s}${isSidePlank || isEachSide ? " (each side)" : ""}`
   );
-  const exerciseNameJson = JSON.stringify(String(adj.name || "Exercise"));
 
-  const timedOnclick = (isSidePlank || isEachSide)
-    ? `startEachSideSet(this, ${adj.timerSec}, ${s}, ${exerciseNameJson}, 60)`
+  const timedOnclick = isSidePlank
+    ? `startSidePlankSet(this, ${adj.timerSec}, ${s})`
     : `startCountdownTimer(this, ${adj.timerSec}, ${timedLabel}, 60)`;
 
   html += `
@@ -1461,12 +1409,13 @@ html += `
     const t80 = target80(adj.name);
     const restSec = getRestSecondsForExercise(adj.name, phase);
     const rpeText = getRpeTargetText(adj.name, phase, microWeek);
+    const showRpe = getActiveClientId() !== "blake";
     html += `
       <h4>${adj.name} — ${adj.sets} x ${adj.reps}</h4>
       <small style="color:#666;">
         ${rm ? `1RM: ${rm.toFixed(1)} kg • 80%: ${t80.toFixed(1)} kg` : `1RM: — (log a set to auto-calc)`}
         ${suggestion ? `<br>Suggested next time: ${suggestion} kg` : ""}
-        <br><strong>${rpeText}</strong> • Rest: ${restSec}s
+        ${showRpe ? `<br><strong>${rpeText}</strong> • Rest: ${restSec}s` : `<br>Rest: ${restSec}s`}
       </small>
     `;
 
