@@ -318,10 +318,20 @@ const PROGRAMS = {
     {
       name: "Engine Builder",
       exercises: [
-        { name: "Bike Intervals (3min moderate / 1min hard ×5)", sets: 1, reps: 1 },
-        { name: "Plank", sets: 3, reps: 60, timerSec: 60 },
-        { name: "Side Plank Left", sets: 3, reps: 45, timerSec: 45 },
-        { name: "Side Plank Right", sets: 3, reps: 45, timerSec: 45 },
+        {
+          name: "Bike Intervals",
+          type: "interval",
+          blocks: 3,
+          blockSeconds: 1200,
+          restAfterBlockSec: 60,
+          descriptionLines: [
+            "Each block = 5 rounds:",
+            "3 min moderate pace",
+            "1 min hard effort"
+          ],
+          totalLabel: "20 min per block"
+        },
+        { name: "Pallof Press Hold", sets: 3, reps: 30, timerSec: 30, eachSide: true },
         { name: "Dead Bug", sets: 3, reps: 20 }
       ]
     },
@@ -344,7 +354,7 @@ const PROGRAMS = {
         { name: "Goblet Squat", sets: 4, reps: 15 },
         { name: "Step Ups", sets: 4, reps: 20 },
         { name: "Dead Bug", sets: 4, reps: 20 },
-        { name: "Plank", sets: 3, reps: 60, timerSec: 60 }
+        { name: "Pallof Press Hold", sets: 3, reps: 30, timerSec: 30, eachSide: true }
       ]
     },
     {
@@ -354,7 +364,19 @@ const PROGRAMS = {
         { name: "Leg Press", sets: 4, reps: 12 },
         { name: "Hamstring Curl", sets: 3, reps: 15 },
         { name: "Leg Extension", sets: 3, reps: 15 },
-        { name: "Bike Intervals (30s hard / 90s easy ×10)", sets: 1, reps: 1 }
+        {
+          name: "Bike Intervals",
+          type: "interval",
+          blocks: 1,
+          blockSeconds: 1200,
+          restAfterBlockSec: 0,
+          descriptionLines: [
+            "10 rounds:",
+            "30 sec hard effort",
+            "90 sec easy pace"
+          ],
+          totalLabel: "20 min total"
+        }
       ]
     }
   ],
@@ -776,116 +798,284 @@ window.startSessionTimer = startSessionTimer;
 window.resetSessionTimer = resetSessionTimer;
 
 // ==========================
-// REST TIMER
+// REST / WORK TIMER (PERSISTENT + BEEPS)
 // ==========================
+const ACTIVE_TIMER_KEY = "activeTrainingTimer";
+const LAST_TIMER_NOTICE_KEY = "lastTrainingTimerNotice";
+let __persistentTimerInterval = null;
+let __timerAudioCtx = null;
 
-// ==========================
-// SIMPLE TIMER BEEP
-// ==========================
-function playBeep(freq=880,duration=150){
-  try{
-    const ctx = new (window.AudioContext||window.webkitAudioContext)();
-    const osc = ctx.createOscillator();
-    const gain = ctx.createGain();
-    osc.frequency.value = freq;
-    osc.type="sine";
-    osc.connect(gain);
-    gain.connect(ctx.destination);
-    osc.start();
-    gain.gain.setValueAtTime(0.2,ctx.currentTime);
-    gain.gain.exponentialRampToValueAtTime(0.0001,ctx.currentTime + duration/1000);
-    osc.stop(ctx.currentTime + duration/1000);
-  }catch(e){}
+function getTimerAudioCtx() {
+  const Ctx = window.AudioContext || window.webkitAudioContext;
+  if (!Ctx) return null;
+  if (!__timerAudioCtx) __timerAudioCtx = new Ctx();
+  return __timerAudioCtx;
 }
 
-function startRestTimer(btn) {
-  // ✅ Use per-button rest if provided, otherwise default 60
-  let seconds = Number(btn.dataset.rest) || 60;
-
-  btn.disabled = true;
-
-  const interval = setInterval(() => {
-    btn.innerText = `Rest ${seconds}s`;
-    seconds--;
-
-    if (seconds < 0) {
-      clearInterval(interval);
-
-      // ✅ If this rest was triggered after a timed set, end on DONE
-      if (btn.dataset.afterRestDone === "1") {
-        btn.innerText = "✅ Done";
-        btn.disabled = true; // lock it after completion
-        // cleanup optional
-        delete btn.dataset.afterRestDone;
-        delete btn.dataset.rest;
-        return;
-      }
-
-      // normal behavior for non-timed rest timers
-      playBeep(1000,180); btn.innerText = "Start 60s Rest";
-      btn.disabled = false;
-      delete btn.dataset.rest;
-    }
-  }, 1000);
+async function primeTimerAudio() {
+  const ctx = getTimerAudioCtx();
+  if (!ctx) return;
+  try {
+    if (ctx.state === "suspended") await ctx.resume();
+  } catch (e) {
+    console.warn("Audio resume failed", e);
+  }
 }
-window.startRestTimer = startRestTimer;
 
-// ==========================
-// WORK (COUNTDOWN) TIMER
-// ==========================
-function startCountdownTimer(btn, totalSeconds, label, restSeconds) {
-  let seconds = Number(totalSeconds) || 0;
-  if (seconds <= 0) return;
+function beepOnce(duration = 180, frequency = 880) {
+  const ctx = getTimerAudioCtx();
+  if (!ctx) return;
+  const now = ctx.currentTime;
+  const osc = ctx.createOscillator();
+  const gain = ctx.createGain();
 
-  btn.disabled = true;
+  osc.type = "sine";
+  osc.frequency.setValueAtTime(frequency, now);
+  gain.gain.setValueAtTime(0.0001, now);
+  gain.gain.exponentialRampToValueAtTime(0.18, now + 0.01);
+  gain.gain.exponentialRampToValueAtTime(0.0001, now + duration / 1000);
 
-  const pad2 = (n) => String(n).padStart(2, "0");
-  const render = () => {
-    const m = Math.floor(seconds / 60);
-    const s = seconds % 60;
-    btn.innerText = `${label} ${m}:${pad2(s)}`;
+  osc.connect(gain);
+  gain.connect(ctx.destination);
+
+  osc.start(now);
+  osc.stop(now + duration / 1000 + 0.02);
+}
+
+function playTimerBeep(kind = "finish") {
+  primeTimerAudio();
+
+  if (kind === "switch") {
+    beepOnce(120, 740);
+    setTimeout(() => beepOnce(120, 740), 170);
+    return;
+  }
+
+  if (kind === "rest") {
+    beepOnce(160, 920);
+    setTimeout(() => beepOnce(160, 1100), 180);
+    return;
+  }
+
+  beepOnce(180, 880);
+}
+
+function getActiveTimerState() {
+  try {
+    return JSON.parse(localStorage.getItem(ACTIVE_TIMER_KEY) || "null");
+  } catch (e) {
+    return null;
+  }
+}
+
+function setActiveTimerState(state) {
+  localStorage.setItem(ACTIVE_TIMER_KEY, JSON.stringify(state));
+  refreshActiveTimerUI();
+}
+
+function clearActiveTimerState() {
+  localStorage.removeItem(ACTIVE_TIMER_KEY);
+  refreshActiveTimerUI();
+}
+
+function ensurePersistentTimerTicker() {
+  if (__persistentTimerInterval) return;
+  __persistentTimerInterval = setInterval(tickPersistentTimer, 250);
+}
+
+function formatTimerRemaining(sec) {
+  const m = Math.floor(sec / 60);
+  const s = sec % 60;
+  return `${m}:${String(s).padStart(2, "0")}`;
+}
+
+function buildTimerState(config) {
+  const durationSec = Number(config.durationSec) || 0;
+  return {
+    ...config,
+    durationSec,
+    endAt: Date.now() + durationSec * 1000,
   };
+}
 
-  render();
+function refreshActiveTimerUI() {
+  const banner = document.getElementById("activeTimerBanner");
+  const state = getActiveTimerState();
+  const remaining = state ? Math.max(0, Math.ceil((state.endAt - Date.now()) / 1000)) : 0;
+  const notice = localStorage.getItem(LAST_TIMER_NOTICE_KEY) || "";
 
-  const interval = setInterval(() => {
-    seconds--;
+  document.querySelectorAll("[data-timer-key]").forEach((btn) => {
+    const timerKey = btn.dataset.timerKey;
+    const defaultText = btn.dataset.defaultText || "Start Timer";
 
-    if (seconds <= 0) {
-      clearInterval(interval);
-
-      // If restSeconds is provided, auto-start the existing rest timer on the same button
-      const rest = Number(restSeconds) || 0;
-      if (rest > 0 && typeof window.startRestTimer === "function") {
-        btn.disabled = false;                 // rest timer expects enabled
-        btn.dataset.rest = String(rest);      // ✅ rest duration per button
-        btn.dataset.afterRestDone = "1";      // ✅ tell rest timer to finish on DONE
-        btn.innerText = `Rest ${rest}s`;      // brief handoff text
-        window.startRestTimer(btn);           // 🚀 auto-start rest
-        return;
-      }
-
-      playBeep(900,200); btn.innerText = `✅ ${label} done`;
-      btn.disabled = true;
+    if (!state || timerKey !== state.timerKey) {
+      btn.disabled = false;
+      btn.innerText = defaultText;
       return;
     }
 
-    render();
-  }, 1000);
+    btn.disabled = true;
+    if (state.kind === "rest") {
+      btn.innerText = `Rest ${remaining}s`;
+    } else {
+      btn.innerText = `${state.label} ${formatTimerRemaining(remaining)}`;
+    }
+  });
+
+  if (!banner) return;
+
+  if (state) {
+    banner.style.display = "block";
+    banner.innerHTML = `<strong>Active timer:</strong> ${state.label} — ${formatTimerRemaining(remaining)}`;
+    return;
+  }
+
+  if (notice) {
+    banner.style.display = "block";
+    banner.innerHTML = `✅ ${notice}`;
+    return;
+  }
+
+  banner.style.display = "none";
+  banner.innerHTML = "";
+}
+
+function finishTimerState(state) {
+  if (!state) return;
+
+  if (state.kind === "rest") {
+    playTimerBeep("rest");
+  } else {
+    playTimerBeep("finish");
+  }
+
+  localStorage.setItem(LAST_TIMER_NOTICE_KEY, state.noticeText || `${state.label} finished.`);
+  clearActiveTimerState();
+}
+
+function transitionToNextTimerState(nextState, prevState = null) {
+  if (!nextState) return;
+
+  if (prevState) {
+    const prevLabel = String(prevState.label || "").toLowerCase();
+    const nextLabel = String(nextState.label || "").toLowerCase();
+
+    if (prevLabel.includes("left") && nextLabel.includes("right")) {
+      playTimerBeep("switch");
+    } else {
+      playTimerBeep("finish");
+    }
+  }
+
+  const built = buildTimerState(nextState);
+  setActiveTimerState(built);
+}
+
+function tickPersistentTimer() {
+  const state = getActiveTimerState();
+  if (!state) {
+    refreshActiveTimerUI();
+    return;
+  }
+
+  const remaining = Math.max(0, Math.ceil((state.endAt - Date.now()) / 1000));
+  if (remaining > 0) {
+    refreshActiveTimerUI();
+    return;
+  }
+
+  if (state.next) {
+    transitionToNextTimerState(state.next, state);
+    return;
+  }
+
+  finishTimerState(state);
+}
+
+function startManagedTimer(state) {
+  if (!state?.timerKey) return;
+  primeTimerAudio();
+  localStorage.removeItem(LAST_TIMER_NOTICE_KEY);
+  transitionToNextTimerState(state);
+  ensurePersistentTimerTicker();
+}
+
+function startRestTimer(btn) {
+  const seconds = Number(btn.dataset.rest) || 60;
+  const timerKey = btn.dataset.timerKey || `rest-${Date.now()}`;
+  const defaultText = btn.dataset.defaultText || `Start ${seconds}s Rest`;
+
+  btn.dataset.defaultText = defaultText;
+
+  startManagedTimer({
+    timerKey,
+    kind: "rest",
+    label: "Rest",
+    durationSec: seconds,
+    noticeText: "Rest finished.",
+  });
+}
+window.startRestTimer = startRestTimer;
+
+function startCountdownTimer(btn, totalSeconds, label, restSeconds) {
+  const seconds = Number(totalSeconds) || 0;
+  if (seconds <= 0) return;
+
+  const timerKey = btn.dataset.timerKey || `${label}-${Date.now()}`;
+  const defaultText = btn.dataset.defaultText || "Start Timer";
+  btn.dataset.defaultText = defaultText;
+
+  const state = {
+    timerKey,
+    kind: "work",
+    label,
+    durationSec: seconds,
+    noticeText: `${label} finished.`,
+  };
+
+  const rest = Number(restSeconds) || 0;
+  if (rest > 0) {
+    state.next = {
+      timerKey,
+      kind: "rest",
+      label: "Rest",
+      durationSec: rest,
+      noticeText: "Rest finished.",
+    };
+  }
+
+  startManagedTimer(state);
 }
 window.startCountdownTimer = startCountdownTimer;
+
 window.startSidePlankSet = function startSidePlankSet(btn, secondsPerSide, setNum) {
   const sec = Number(secondsPerSide) || 0;
   if (!sec) return;
 
-  // Left side first
-  startCountdownTimer(btn, sec, `Side Plank (Left) set ${setNum}`, 0);
+  const timerKey = btn.dataset.timerKey || `sideplank-${setNum}-${Date.now()}`;
+  btn.dataset.defaultText = btn.dataset.defaultText || `Start ${Math.floor(sec / 60)}:${String(sec % 60).padStart(2, "0")} Timer`;
 
-  // After left completes, immediately run right side (no rest between sides)
-  setTimeout(() => {
-    // Right side then rest 60s AFTER the set (i.e., after both sides)
-    playBeep(750,120); playBeep(750,120); startCountdownTimer(btn, sec, `Side Plank (Right) set ${setNum}`, 60);
-  }, (sec + 1) * 1000); // +1 to avoid timing edge cases
+  startManagedTimer({
+    timerKey,
+    kind: "work",
+    label: `Side Plank (Left) set ${setNum}`,
+    durationSec: sec,
+    noticeText: `Side Plank set ${setNum} finished.`,
+    next: {
+      timerKey,
+      kind: "work",
+      label: `Side Plank (Right) set ${setNum}`,
+      durationSec: sec,
+      noticeText: `Side Plank set ${setNum} finished.`,
+      next: {
+        timerKey,
+        kind: "rest",
+        label: "Rest",
+        durationSec: 60,
+        noticeText: "Rest finished.",
+      },
+    },
+  });
 };
 
 // ==========================
@@ -1029,6 +1219,16 @@ function getRunPrescription(dayName) {
   };
 }
 
+function formatDurationLabel(totalSeconds) {
+  const mins = Math.floor(totalSeconds / 60);
+  const secs = totalSeconds % 60;
+  return `${mins}:${String(secs).padStart(2, "0")}`;
+}
+
+function isIntervalExercise(ex) {
+  return String(ex?.type || "").toLowerCase() === "interval";
+}
+
 // ==========================
 // TODAY TAB
 // ==========================
@@ -1059,7 +1259,7 @@ function renderToday() {
       </div>
       ${(typeof getHyroxReadyPct === "function" && getHyroxReadyPct() != null) ? ('<div style="background:#111;color:#fff;padding:8px 12px;border-radius:20px;display:inline-block;font-weight:800;margin:8px 0 10px 0;">HYROX READY: ' + getHyroxReadyPct() + '%</div>') : ''}
 
-      <div id="sessionTimer" style="margin:8px 0 12px 0;font-weight:800;">Session: 0:00 / 90:00</div>
+      <div id="sessionTimer" style="margin:8px 0 12px 0;font-weight:800;">Session: 0:00 / 90:00</div>\n      <div id="activeTimerBanner" style="display:none;margin:8px 0 12px 0;padding:10px 12px;background:#eef6ff;border:1px solid #b9d7ff;border-radius:12px;color:#123;"></div>
       <div style="display:flex;gap:10px;flex-wrap:wrap;margin-bottom:10px;">
         <button onclick="startSessionTimer()" style="padding:10px 12px;cursor:pointer;">Start Session ⏱️</button>
         <button onclick="resetSessionTimer()" style="padding:10px 12px;cursor:pointer;">Reset</button>
@@ -1094,61 +1294,101 @@ function renderToday() {
 
     if (exName === "HYROX_SESSION") return;
     if (exName.toUpperCase().startsWith("RUN_")) return;
-// ---- TIMED EXERCISE BLOCK (e.g., Plank) ----
-const isTimed = !!adj.timerSec;
 
-if (isTimed) {
-  const mins = Math.floor(adj.timerSec / 60);
-  const secs = adj.timerSec % 60;
-  const durLabel = `${mins}:${String(secs).padStart(2, "0")}`;
+    if (isIntervalExercise(adj)) {
+      const blocks = Number(adj.blocks) || 1;
+      const blockSeconds = Number(adj.blockSeconds) || 0;
+      const restAfterBlockSec = Number(adj.restAfterBlockSec) || 0;
+      const desc = Array.isArray(adj.descriptionLines) ? adj.descriptionLines : [];
 
-  html += `
-    <h4>${adj.name} — ${adj.sets} sets × ${durLabel}</h4>
-  `;
+      html += `
+        <h4>${adj.name}</h4>
+        <div style="background:#f7f7f7;border:1px solid #ddd;border-radius:12px;padding:12px;margin:8px 0 12px 0;">
+          <div style="font-weight:700;margin-bottom:6px;">${blocks} block${blocks === 1 ? "" : "s"}${adj.totalLabel ? ` • ${adj.totalLabel}` : ""}</div>
+          ${desc.map((line) => `<div style="color:#333;line-height:1.5;">${line}</div>`).join("")}
+          ${restAfterBlockSec > 0 ? `<div style="margin-top:6px;color:#666;">Rest ${restAfterBlockSec}s between blocks</div>` : ""}
+        </div>
+      `;
 
-  for (let s = 1; s <= (adj.sets || 1); s++) {
-  const isSidePlank = String(adj.name || "").toLowerCase().includes("side plank");
+      for (let b = 1; b <= blocks; b++) {
+        const timerKey = `interval-${dayIndex}-${exIndex}-b${b}`;
+        html += `
+          <div style="margin-bottom:10px;">
+            <div style="color:#666;font-size:13px;">Block ${b}</div>
+            <button
+              data-timer-key="${timerKey}"
+              data-default-text="Start Block ${b} (${formatDurationLabel(blockSeconds)})"
+              onclick="startCountdownTimer(this, ${blockSeconds}, '${adj.name} Block ${b}', ${restAfterBlockSec})"
+              style="padding:10px 12px;cursor:pointer;"
+            >
+              Start Block ${b} (${formatDurationLabel(blockSeconds)})
+            </button>
+          </div>
+        `;
+      }
 
-  html += `
-    <div style="margin-bottom:10px;">
-      <div style="color:#666;font-size:13px;">Set ${s}${isSidePlank ? " (each side)" : ""}</div>
+      html += `<hr>`;
+      return;
+    }
 
-      <button
-        onclick="${
-          isSidePlank
-            ? `startSidePlankSet(this, ${adj.timerSec}, ${s})`
-            : `startCountdownTimer(this, ${adj.timerSec}, '${adj.name} set ${s}', 60)`
-        }"
-        style="padding:10px 12px;cursor:pointer;"
-      >
-        Start ${durLabel} Timer
-      </button>
-    </div>
-  `;
-}
+    const isTimed = !!adj.timerSec;
 
-  html += `<hr>`;
-  return; // IMPORTANT: prevents normal reps/weights UI from rendering
-}
-// -------------------------------------------
-const suggestion = getSuggestion(dayIndex, exIndex, adj.reps, adj.name);
-   const rm = getOneRM(adj.name);
-const t80 = target80(adj.name);
-const restSec = getRestSecondsForExercise(adj.name, phase);
-const rpeText = getRpeTargetText(adj.name, phase, microWeek);
-html += `
+    if (isTimed) {
+      const mins = Math.floor(adj.timerSec / 60);
+      const secs = adj.timerSec % 60;
+      const durLabel = `${mins}:${String(secs).padStart(2, "0")}`;
+      const isSidePlank = String(adj.name || "").toLowerCase().includes("side plank");
+      const isEachSide = !!adj.eachSide;
+
+      html += `
+        <h4>${adj.name} — ${adj.sets} sets × ${durLabel}${isSidePlank || isEachSide ? " each side" : ""}</h4>
+      `;
+
+      for (let s = 1; s <= (adj.sets || 1); s++) {
+        const timerKey = `timed-${dayIndex}-${exIndex}-s${s}`;
+        html += `
+          <div style="margin-bottom:10px;">
+            <div style="color:#666;font-size:13px;">Set ${s}${isSidePlank || isEachSide ? " (each side)" : ""}</div>
+
+            <button
+              data-timer-key="${timerKey}"
+              data-default-text="Start ${durLabel} Timer"
+              onclick="${
+                isSidePlank
+                  ? `startSidePlankSet(this, ${adj.timerSec}, ${s})`
+                  : `startCountdownTimer(this, ${adj.timerSec}, '${adj.name} set ${s}${isEachSide ? " (each side)" : ""}', 60)`
+              }"
+              style="padding:10px 12px;cursor:pointer;"
+            >
+              Start ${durLabel} Timer
+            </button>
+          </div>
+        `;
+      }
+
+      html += `<hr>`;
+      return;
+    }
+
+    const suggestion = getSuggestion(dayIndex, exIndex, adj.reps, adj.name);
+    const rm = getOneRM(adj.name);
+    const t80 = target80(adj.name);
+    const restSec = getRestSecondsForExercise(adj.name, phase);
+    const rpeText = getRpeTargetText(adj.name, phase, microWeek);
+    html += `
       <h4>${adj.name} — ${adj.sets} x ${adj.reps}</h4>
       <small style="color:#666;">
-    ${rm ? `1RM: ${rm.toFixed(1)} kg • 80%: ${t80.toFixed(1)} kg` : `1RM: — (log a set to auto-calc)`}
-    ${suggestion ? `<br>Suggested next time: ${suggestion} kg` : ""}
-    <br><strong>${rpeText}</strong> • Rest: ${restSec}s
-  </small>
-`;
+        ${rm ? `1RM: ${rm.toFixed(1)} kg • 80%: ${t80.toFixed(1)} kg` : `1RM: — (log a set to auto-calc)`}
+        ${suggestion ? `<br>Suggested next time: ${suggestion} kg` : ""}
+        <br><strong>${rpeText}</strong> • Rest: ${restSec}s
+      </small>
+    `;
 
     for (let s = 1; s <= adj.sets; s++) {
-const viewAbs = getViewAbsDay();
-const ss = sessionSuffixForAbs(viewAbs);const weightKey = `d${dayIndex}-e${exIndex}-s${s}-w-${ss}`;
-const repsKey   = `d${dayIndex}-e${exIndex}-s${s}-r-${ss}`;
+      const viewAbs = getViewAbsDay();
+      const ss = sessionSuffixForAbs(viewAbs);
+      const weightKey = `d${dayIndex}-e${exIndex}-s${s}-w-${ss}`;
+      const repsKey = `d${dayIndex}-e${exIndex}-s${s}-r-${ss}`;
 
       const weight = localStorage.getItem(weightKey) || "";
       const reps = localStorage.getItem(repsKey) || "";
@@ -1177,7 +1417,13 @@ const repsKey   = `d${dayIndex}-e${exIndex}-s${s}-r-${ss}`;
     }
 
     html += `
-      <button data-rest="${restSec}" onclick="startRestTimer(this)" style="padding:10px 12px;cursor:pointer;margin-bottom:10px;">
+      <button
+        data-timer-key="rest-${dayIndex}-${exIndex}"
+        data-default-text="Start ${restSec}s Rest"
+        data-rest="${restSec}"
+        onclick="startRestTimer(this)"
+        style="padding:10px 12px;cursor:pointer;margin-bottom:10px;"
+      >
         Start ${restSec}s Rest
       </button>
       <hr>
@@ -1234,6 +1480,8 @@ app.innerHTML = html;
   tickSessionTimer();
   const k = sessionKeyForToday();
   if (localStorage.getItem(k)) startSessionTimer();
+  refreshActiveTimerUI();
+  ensurePersistentTimerTicker();
 }
 
 // ==========================
